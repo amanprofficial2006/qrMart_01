@@ -34,6 +34,20 @@ function buildUpiLink(shop, amount) {
   return `upi://pay?${params.toString()}`;
 }
 
+function SafeImage({ src, fallback = null, ...props }) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
+  if (!src || failed) {
+    return fallback;
+  }
+
+  return <img {...props} src={src} onError={() => setFailed(true)} />;
+}
+
 function CustomerShop() {
   const [slug] = useState(getSlugFromPath);
   const [shop, setShop] = useState(null);
@@ -296,7 +310,7 @@ function CustomerShop() {
   return (
     <main className="page">
       <header className="hero shop-hero">
-        {shop.logoUrl ? <img className="shop-logo" src={assetUrl(shop.logoUrl)} alt={`${shop.name} logo`} /> : null}
+        {shop.logoUrl ? <SafeImage className="shop-logo" src={assetUrl(shop.logoUrl)} alt={`${shop.name} logo`} /> : null}
         <p className="eyebrow">Scan. Select. Order.</p>
         <h1>{shop.name}</h1>
         {shop.description ? <p>{shop.description}</p> : null}
@@ -314,7 +328,7 @@ function CustomerShop() {
                 {items.map((product) => (
                   <article className="product-card" key={product._id}>
                     {product.imageUrl ? (
-                      <img className="product-thumb" src={assetUrl(product.imageUrl)} alt={product.name} />
+                      <SafeImage className="product-thumb" src={assetUrl(product.imageUrl)} alt={product.name} />
                     ) : null}
                     <div className="product-copy">
                       <h3>{product.name}</h3>
@@ -423,7 +437,7 @@ function CustomerShop() {
             {paymentConfigured ? (
               <>
                 {shop.payment?.qrCodeUrl ? (
-                  <img className="payment-qr" src={assetUrl(shop.payment.qrCodeUrl)} alt="Payment QR code" />
+                  <SafeImage className="payment-qr" src={assetUrl(shop.payment.qrCodeUrl)} alt="Payment QR code" />
                 ) : null}
                 {shop.payment?.upiId ? (
                   <div className="upi-row">

@@ -46,6 +46,20 @@ function ShopPlaceholderIcon() {
   );
 }
 
+function SafeImage({ src, fallback = null, ...props }) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
+  if (!src || failed) {
+    return fallback;
+  }
+
+  return <img {...props} src={src} onError={() => setFailed(true)} />;
+}
+
 function formatDate(value) {
   return new Intl.DateTimeFormat("en-IN", {
     dateStyle: "medium",
@@ -69,6 +83,7 @@ function OwnerDashboard() {
   const [productForm, setProductForm] = useState(emptyProductForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [refreshingQr, setRefreshingQr] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [notificationStatus, setNotificationStatus] = useState("");
@@ -267,6 +282,25 @@ function OwnerDashboard() {
     }
   }
 
+  async function refreshShopQr() {
+    setRefreshingQr(true);
+    setError("");
+
+    try {
+      const refreshedQr = await apiFetch("/api/v1/owner/qr/refresh", {
+        method: "POST",
+        body: JSON.stringify({ baseUrl: window.location.origin })
+      });
+      setQr(refreshedQr);
+      setShop((currentShop) => (currentShop ? { ...currentShop, qrUrl: refreshedQr.qrUrl } : currentShop));
+      setToast("QR refreshed with live shop link");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setRefreshingQr(false);
+    }
+  }
+
   function updateProductForm(field, value) {
     setProductForm((current) => ({
       ...current,
@@ -391,13 +425,16 @@ function OwnerDashboard() {
     <main className="owner-shell">
       <header className="owner-topbar">
         <div className="brand-row">
-          {shop?.logoUrl ? (
-            <img className="owner-logo" src={assetUrl(shop.logoUrl)} alt="" />
-          ) : (
-            <div className="owner-logo-placeholder">
-              <ShopPlaceholderIcon />
-            </div>
-          )}
+          <SafeImage
+            className="owner-logo"
+            src={assetUrl(shop?.logoUrl)}
+            alt=""
+            fallback={
+              <div className="owner-logo-placeholder">
+                <ShopPlaceholderIcon />
+              </div>
+            }
+          />
           <div>
             <p className="eyebrow">Owner panel</p>
             <h1>{shop?.name || "Your shop"}</h1>
@@ -564,7 +601,9 @@ function OwnerDashboard() {
             <div className="owner-list">
               {products.map((product) => (
                 <article className="owner-list-card" key={product._id}>
-                  {product.imageUrl ? <img className="owner-product-image" src={assetUrl(product.imageUrl)} alt="" /> : null}
+                  {product.imageUrl ? (
+                    <SafeImage className="owner-product-image" src={assetUrl(product.imageUrl)} alt="" />
+                  ) : null}
                   <div>
                     <h3>{product.name}</h3>
                     <p className="muted">
@@ -658,7 +697,11 @@ function OwnerDashboard() {
               </div>
             </div>
             <div className="logo-preview">
-              {shop?.logoUrl ? <img src={assetUrl(shop.logoUrl)} alt={`${shop.name} logo`} /> : <span>No logo yet</span>}
+              <SafeImage
+                src={assetUrl(shop?.logoUrl)}
+                alt={`${shop?.name || "Shop"} logo`}
+                fallback={<span>{shop?.logoUrl ? "Logo missing. Upload again." : "No logo yet"}</span>}
+              />
             </div>
             <label>
               Upload logo
@@ -671,11 +714,13 @@ function OwnerDashboard() {
               </div>
             </div>
             <div className="logo-preview payment-preview">
-              {shop?.payment?.qrCodeUrl ? (
-                <img src={assetUrl(shop.payment.qrCodeUrl)} alt="Payment QR code" />
-              ) : (
-                <span>No payment QR yet</span>
-              )}
+              <SafeImage
+                src={assetUrl(shop?.payment?.qrCodeUrl)}
+                alt="Payment QR code"
+                fallback={
+                  <span>{shop?.payment?.qrCodeUrl ? "Payment QR missing. Upload again." : "No payment QR yet"}</span>
+                }
+              />
             </div>
             <label>
               Upload payment QR
@@ -697,6 +742,7 @@ function OwnerDashboard() {
             <>
               <img className="qr-image" src={qr.qrDataUrl} alt="Shop QR code" />
               <p className="muted">{qr.qrUrl}</p>
+              <p className="muted">Domain changed after deploy? Refresh once to generate a QR for this live website.</p>
               <div className="qr-actions">
                 <a className="submit-button" href={qr.qrDataUrl} download={`${shop?.slug || "shop"}-qr.png`}>
                   Download QR
@@ -704,6 +750,9 @@ function OwnerDashboard() {
                 <a className="ghost-button" href={qr.qrUrl} target="_blank" rel="noreferrer">
                   Open shop page
                 </a>
+                <button className="ghost-button" type="button" onClick={refreshShopQr} disabled={refreshingQr}>
+                  {refreshingQr ? "Refreshing..." : "Refresh live QR"}
+                </button>
               </div>
             </>
           ) : (
