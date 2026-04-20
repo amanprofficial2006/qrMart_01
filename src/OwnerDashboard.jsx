@@ -31,6 +31,10 @@ const emptyProductForm = {
 
 const NOTIFICATIONS_ENABLED_KEY = "qrmart_notifications_enabled";
 
+function getBrowserOrigin() {
+  return typeof window === "undefined" ? "" : window.location.origin;
+}
+
 function ShopPlaceholderIcon() {
   return (
     <svg width="34" height="34" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
@@ -80,6 +84,7 @@ function OwnerDashboard() {
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [qr, setQr] = useState(null);
+  const [qrBaseUrl, setQrBaseUrl] = useState(getBrowserOrigin);
   const [productForm, setProductForm] = useState(emptyProductForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -122,6 +127,7 @@ function OwnerDashboard() {
         setProducts(productData);
         setOrders(orderData);
         setQr(qrData);
+        setQrBaseUrl(getBrowserOrigin());
       } catch (err) {
         if (err.message.toLowerCase().includes("token")) {
           clearToken();
@@ -283,15 +289,18 @@ function OwnerDashboard() {
   }
 
   async function refreshShopQr() {
+    const cleanBaseUrl = qrBaseUrl.trim() || getBrowserOrigin();
+
     setRefreshingQr(true);
     setError("");
 
     try {
       const refreshedQr = await apiFetch("/api/v1/owner/qr/refresh", {
         method: "POST",
-        body: JSON.stringify({ baseUrl: window.location.origin })
+        body: JSON.stringify({ baseUrl: cleanBaseUrl })
       });
       setQr(refreshedQr);
+      setQrBaseUrl(cleanBaseUrl);
       setShop((currentShop) => (currentShop ? { ...currentShop, qrUrl: refreshedQr.qrUrl } : currentShop));
       setToast("QR refreshed with live shop link");
     } catch (err) {
@@ -420,6 +429,7 @@ function OwnerDashboard() {
 
   const newOrders = orders.filter((order) => ["placed", "seen"].includes(order.status));
   const historyOrders = orders.filter((order) => !["placed", "seen"].includes(order.status));
+  const previewQrUrl = shop?.slug ? `${(qrBaseUrl || getBrowserOrigin()).replace(/\/$/, "")}/shop/${shop.slug}` : "";
 
   return (
     <main className="owner-shell">
@@ -741,8 +751,33 @@ function OwnerDashboard() {
           {qr ? (
             <>
               <img className="qr-image" src={qr.qrDataUrl} alt="Shop QR code" />
-              <p className="muted">{qr.qrUrl}</p>
-              <p className="muted">Domain changed after deploy? Refresh once to generate a QR for this live website.</p>
+              <div className="qr-link-box">
+                <span>Current QR opens</span>
+                <strong>{qr.qrUrl}</strong>
+              </div>
+              <div className="qr-refresh-card">
+                <div>
+                  <p className="eyebrow">Update live URL</p>
+                  <h3>Refresh QR link</h3>
+                  <p className="muted">Use this after deployment so the QR opens your live website, not localhost.</p>
+                </div>
+                <label>
+                  Live website domain
+                  <input
+                    value={qrBaseUrl}
+                    onChange={(event) => setQrBaseUrl(event.target.value)}
+                    placeholder="https://qrmart-01.onrender.com"
+                  />
+                </label>
+                {previewQrUrl ? (
+                  <p className="muted">
+                    New QR will open: <strong>{previewQrUrl}</strong>
+                  </p>
+                ) : null}
+                <button className="submit-button" type="button" onClick={refreshShopQr} disabled={refreshingQr}>
+                  {refreshingQr ? "Refreshing QR..." : "Refresh QR with this URL"}
+                </button>
+              </div>
               <div className="qr-actions">
                 <a className="submit-button" href={qr.qrDataUrl} download={`${shop?.slug || "shop"}-qr.png`}>
                   Download QR
@@ -750,9 +785,6 @@ function OwnerDashboard() {
                 <a className="ghost-button" href={qr.qrUrl} target="_blank" rel="noreferrer">
                   Open shop page
                 </a>
-                <button className="ghost-button" type="button" onClick={refreshShopQr} disabled={refreshingQr}>
-                  {refreshingQr ? "Refreshing..." : "Refresh live QR"}
-                </button>
               </div>
             </>
           ) : (
