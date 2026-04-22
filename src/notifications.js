@@ -12,6 +12,8 @@ const firebaseConfig = {
 };
 
 const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+const ORDER_ALERT_SOUND_URL = "/freesound_community-phone-ringing-48238.mp3";
+let orderAlertAudio = null;
 
 function isLikelyValidVapidKey(value) {
   const key = String(value || "").trim();
@@ -227,6 +229,26 @@ export function showForegroundOrderAlert(order) {
     navigator.vibrate([500, 150, 500, 150, 500]);
   }
 
+  try {
+    if (!orderAlertAudio) {
+      orderAlertAudio = new Audio(ORDER_ALERT_SOUND_URL);
+      orderAlertAudio.preload = "auto";
+    }
+
+    orderAlertAudio.currentTime = 0;
+    const playback = orderAlertAudio.play();
+
+    if (playback && typeof playback.catch === "function") {
+      playback.catch(() => {
+        playFallbackOrderAlertTone();
+      });
+    }
+  } catch (_error) {
+    playFallbackOrderAlertTone();
+  }
+}
+
+function playFallbackOrderAlertTone() {
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     const audio = new AudioContext();
