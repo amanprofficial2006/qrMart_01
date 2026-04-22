@@ -19,6 +19,12 @@ const orderUpdateSuggestions = [
   "Please call for confirmation 📞"
 ];
 
+const historyOrderStatuses = ["completed", "rejected", "cancelled"];
+const orderViewTabs = [
+  { id: "active", label: "Current orders" },
+  { id: "history", label: "History" }
+];
+
 const emptyProductForm = {
   id: "",
   name: "",
@@ -50,6 +56,56 @@ function ShopPlaceholderIcon() {
   );
 }
 
+function ExternalLinkIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M14 5h5v5M10 14 19 5M19 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function BellIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M15 17H5l2-2v-4a5 5 0 1 1 10 0v4l2 2h-4M10 17a2 2 0 0 0 4 0"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function LogoutIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M15 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+      <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function SafeImage({ src, fallback = null, ...props }) {
   const [failed, setFailed] = useState(false);
 
@@ -69,6 +125,12 @@ function formatDate(value) {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(new Date(value));
+}
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat("en-IN", {
+    maximumFractionDigits: 0
+  }).format(Number(value || 0));
 }
 
 function statusLabel(status) {
@@ -91,11 +153,12 @@ function OwnerDashboard() {
   const [refreshingQr, setRefreshingQr] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
-  const [notificationStatus, setNotificationStatus] = useState("");
   const [notificationsEnabled, setNotificationsEnabled] = useState(
     () => sessionStorage.getItem(NOTIFICATIONS_ENABLED_KEY) === "true"
   );
   const [enablingNotifications, setEnablingNotifications] = useState(false);
+  const [orderView, setOrderView] = useState("active");
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -162,6 +225,7 @@ function OwnerDashboard() {
       setToast(`New order ${order.orderNumber}`);
       showForegroundOrderAlert(order);
       setActiveTab("orders");
+      setOrderView("active");
     });
 
     socket.on("order:updated", (order) => {
@@ -175,6 +239,27 @@ function OwnerDashboard() {
     return () => socket.disconnect();
   }, [token]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia("(min-width: 701px)");
+    const handleScreenChange = (event) => {
+      if (event.matches) {
+        setMobileActionsOpen(false);
+      }
+    };
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleScreenChange);
+      return () => mediaQuery.removeEventListener("change", handleScreenChange);
+    }
+
+    mediaQuery.addListener(handleScreenChange);
+    return () => mediaQuery.removeListener(handleScreenChange);
+  }, []);
+
   function logout() {
     clearToken();
     window.location.href = "/login";
@@ -183,7 +268,6 @@ function OwnerDashboard() {
   function disableNotifications() {
     sessionStorage.removeItem(NOTIFICATIONS_ENABLED_KEY);
     setNotificationsEnabled(false);
-    setNotificationStatus("Order alerts disabled for this browser session.");
     setToast("Order alerts disabled for this session.");
   }
 
@@ -198,12 +282,10 @@ function OwnerDashboard() {
     }
 
     setEnablingNotifications(true);
-    setNotificationStatus("Enabling notifications...");
     setError("");
 
     try {
       const result = await registerOwnerNotifications(apiFetch);
-      setNotificationStatus(result.message);
 
       if (result.ok) {
         setNotificationsEnabled(true);
@@ -211,7 +293,6 @@ function OwnerDashboard() {
         setToast(result.message);
       }
     } catch (err) {
-      setNotificationStatus("");
       setError(err.message);
     } finally {
       setEnablingNotifications(false);
@@ -427,9 +508,11 @@ function OwnerDashboard() {
     );
   }
 
-  const newOrders = orders.filter((order) => ["placed", "seen"].includes(order.status));
-  const historyOrders = orders.filter((order) => !["placed", "seen"].includes(order.status));
-  const availableProducts = products.filter((product) => product.isAvailable).length;
+  const activeOrders = orders.filter((order) => !historyOrderStatuses.includes(order.status));
+  const historyOrders = orders.filter((order) => historyOrderStatuses.includes(order.status));
+  const showingHistory = orderView === "history";
+  const visibleOrders = showingHistory ? historyOrders : activeOrders;
+  const visibleOrderCount = visibleOrders.length;
   const todayKey = new Date().toDateString();
   const todayOrders = orders.filter((order) => new Date(order.createdAt).toDateString() === todayKey);
   const todayTotal = todayOrders
@@ -440,58 +523,81 @@ function OwnerDashboard() {
   return (
     <main className="owner-shell">
       <header className="owner-topbar">
-        <div className="brand-row">
-          <SafeImage
-            className="owner-logo"
-            src={assetUrl(shop?.logoUrl)}
-            alt=""
-            fallback={
-              <div className="owner-logo-placeholder">
-                <ShopPlaceholderIcon />
+        <div className="owner-topbar-main">
+          <div className="owner-topbar-intro">
+            <div className="owner-identity">
+              <div className="owner-logo-shell">
+                <SafeImage
+                  className="owner-logo"
+                  src={assetUrl(shop?.logoUrl)}
+                  alt=""
+                  fallback={
+                    <div className="owner-logo-placeholder">
+                      <ShopPlaceholderIcon />
+                    </div>
+                  }
+                />
               </div>
-            }
-          />
-          <div>
-            <p className="eyebrow">Owner panel</p>
-            <h1>{shop?.name || "Your shop"}</h1>
-            <p className="muted">Logged in as {owner?.name}</p>
-            <div className="dashboard-meta" aria-label="Shop quick stats">
-              <span>{newOrders.length} new orders</span>
-              <span>{availableProducts} active items</span>
+              <div className="owner-summary">
+                <p className="eyebrow">Owner panel</p>
+                <h1>{shop?.name || "Your shop"}</h1>
+                <p className="muted">
+                  Logged in as <strong>{owner?.name}</strong>
+                </p>
+              </div>
+            </div>
+            <div className="owner-summary-pills" aria-label="Store status">
+              <span className="owner-summary-pill owner-summary-pill-muted">{products.length} products listed</span>
+              <span className="owner-summary-pill owner-summary-pill-accent">Today Rs. {formatCurrency(todayTotal)}</span>
+            </div>
+          </div>
+          <div className={`dashboard-actions-shell ${mobileActionsOpen ? "is-open" : ""}`}>
+            <button
+              className="dashboard-actions-toggle"
+              type="button"
+              onClick={() => setMobileActionsOpen((current) => !current)}
+              aria-expanded={mobileActionsOpen}
+              aria-controls="owner-dashboard-actions"
+            >
+              <span>{mobileActionsOpen ? "Hide actions" : "Quick actions"}</span>
+              <ChevronDownIcon />
+            </button>
+            <div
+              id="owner-dashboard-actions"
+              className={`dashboard-actions ${shop?.slug ? "" : "dashboard-actions-no-shop"} ${
+                mobileActionsOpen ? "is-open" : ""
+              }`}
+            >
+              {shop?.slug ? (
+                <a
+                  className="ghost-button compact-button dashboard-view-button"
+                  href={`/shop/${shop.slug}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <ExternalLinkIcon />
+                  <span>View shop</span>
+                </a>
+              ) : null}
+              <button
+                className={`submit-button compact-button dashboard-alert-button ${notificationsEnabled ? "enabled-button" : ""}`}
+                type="button"
+                onClick={enableNotifications}
+                disabled={enablingNotifications}
+              >
+                <BellIcon />
+                <span>
+                  {notificationsEnabled ? "Disable alerts" : enablingNotifications ? "Enabling..." : "Enable alerts"}
+                </span>
+              </button>
+              <button className="ghost-button compact-button dashboard-logout-button" type="button" onClick={logout}>
+                <LogoutIcon />
+                <span>Logout</span>
+              </button>
             </div>
           </div>
         </div>
-        <div className="dashboard-actions">
-          {shop?.slug ? (
-            <a className="ghost-button compact-button" href={`/shop/${shop.slug}`} target="_blank" rel="noreferrer">
-              View shop
-            </a>
-          ) : null}
-          <button className="ghost-button compact-button" type="button" onClick={logout}>
-            Logout
-          </button>
-        </div>
       </header>
-
-      <section className="notification-card">
-        <div>
-          <strong>Order alerts</strong>
-          <p className="muted">
-            {notificationStatus ||
-              (notificationsEnabled
-                ? "Order notifications enabled on this browser."
-                : "Enable browser/FCM alerts so new orders are harder to miss.")}
-          </p>
-        </div>
-        <button
-          className={`submit-button compact-button ${notificationsEnabled ? "enabled-button" : ""}`}
-          type="button"
-          onClick={enableNotifications}
-          disabled={enablingNotifications}
-        >
-          {notificationsEnabled ? "Disable alerts" : enablingNotifications ? "Enabling..." : "Enable alerts"}
-        </button>
-      </section>
 
       {toast ? (
         <button className="toast" type="button" onClick={() => setToast("")}>
@@ -500,29 +606,6 @@ function OwnerDashboard() {
       ) : null}
 
       {error ? <div className="inline-error">{error}</div> : null}
-
-      <section className="metric-grid" aria-label="Dashboard summary">
-        <article className="metric-card metric-card-primary">
-          <span>New orders</span>
-          <strong>{newOrders.length}</strong>
-          <p className="metric-note">Needs action now</p>
-        </article>
-        <article className="metric-card">
-          <span>Today total</span>
-          <strong>Rs. {todayTotal}</strong>
-          <p className="metric-note">{todayOrders.length} orders today</p>
-        </article>
-        <article className="metric-card">
-          <span>Products</span>
-          <strong>{products.length}</strong>
-          <p className="metric-note">{availableProducts} available</p>
-        </article>
-        <article className="metric-card">
-          <span>QR link</span>
-          <strong>{shop?.slug ? "Ready" : "Pending"}</strong>
-          <p className="metric-note">{shop?.slug ? "Customers can scan" : "Complete shop setup"}</p>
-        </article>
-      </section>
 
       <nav className="owner-tabs" aria-label="Owner dashboard tabs">
         {tabs.map((tab) => (
@@ -539,33 +622,40 @@ function OwnerDashboard() {
 
       {activeTab === "orders" ? (
         <section className="owner-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Live orders</p>
-              <h2>New orders</h2>
+          <div className="panel-heading panel-heading-stack">
+            <div className="panel-heading-copy">
+              <p className="eyebrow">{showingHistory ? "History" : "Live orders"}</p>
+              <h2>{showingHistory ? "Order history" : "Current orders"}</h2>
+              <p className="muted">
+                {showingHistory
+                  ? "Completed, rejected, and cancelled orders stay here."
+                  : "New and in-progress orders stay here until they are completed."}
+              </p>
             </div>
-            <span className="pill">{newOrders.length} waiting</span>
+            <div className="order-view-controls">
+              <div className="order-view-switch" role="tablist" aria-label="Order view">
+                {orderViewTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    className={orderView === tab.id ? "active" : ""}
+                    onClick={() => setOrderView(tab.id)}
+                    role="tab"
+                    aria-selected={orderView === tab.id}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <span className="pill">{visibleOrderCount} shown</span>
+            </div>
           </div>
           <OrderList
-            orders={newOrders}
+            orders={visibleOrders}
             shopName={shop?.name || "Shop"}
             onStatus={updateOrderStatus}
             onSendNotification={sendOrderNotification}
-            emptyText="No new orders right now."
-          />
-
-          <div className="panel-heading history-heading">
-            <div>
-              <p className="eyebrow">History</p>
-              <h2>Past orders</h2>
-            </div>
-          </div>
-          <OrderList
-            orders={historyOrders}
-            shopName={shop?.name || "Shop"}
-            onStatus={updateOrderStatus}
-            onSendNotification={sendOrderNotification}
-            emptyText="Order history will appear here."
+            emptyText={showingHistory ? "Completed and closed orders will appear here." : "No current orders right now."}
           />
         </section>
       ) : null}
