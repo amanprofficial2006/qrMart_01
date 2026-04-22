@@ -521,6 +521,13 @@ function CustomerShop() {
             <div className="customer-cart-list">
               {cartItems.map((item) => (
                 <article className="customer-cart-item" key={item._id}>
+                  {item.imageUrl ? (
+                    <SafeImage className="customer-cart-thumb" src={assetUrl(item.imageUrl)} alt={item.name} />
+                  ) : (
+                    <div className="customer-cart-thumb customer-product-placeholder" aria-hidden="true">
+                      {(item.name || "?").charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   <div>
                     <h3>{item.name}</h3>
                     <p className="muted">Rs. {item.price} each</p>
@@ -720,7 +727,7 @@ function CustomerShop() {
 
       <aside className="customer-bottom-bar" aria-label="Order summary">
         <div>
-          <span>{cartCount ? `${cartCount} item${cartCount > 1 ? "s" : ""}` : "No items"}</span>
+          <span>Final total{cartCount ? ` · ${cartCount} item${cartCount > 1 ? "s" : ""}` : ""}</span>
           <strong>Rs. {totalAmount}</strong>
         </div>
         {activeStep === "menu" ? (

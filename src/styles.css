@@ -702,13 +702,21 @@ input[type="file"] {
 
 .customer-cart-item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: 60px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 12px;
   border: 1px solid var(--customer-line);
   border-radius: 14px;
   padding: 12px;
   background: #fff;
+}
+
+.customer-cart-thumb {
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: var(--customer-soft);
 }
 
 .customer-cart-item h3 {
@@ -724,6 +732,10 @@ input[type="file"] {
 
 .customer-cart-item > strong {
   white-space: nowrap;
+}
+
+.customer-cart-item .customer-quantity {
+  grid-column: auto;
 }
 
 .customer-total-card {
@@ -932,12 +944,17 @@ input[type="file"] {
   }
 
   .customer-cart-item {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: 52px minmax(0, 1fr) auto;
     gap: 10px;
   }
 
+  .customer-cart-thumb {
+    width: 52px;
+    height: 52px;
+  }
+
   .customer-cart-item > strong {
-    grid-column: 1 / -1;
+    grid-column: 2 / -1;
     justify-self: end;
   }
 
@@ -2949,11 +2966,17 @@ input[type="file"] {
   overflow-wrap: anywhere;
 }
 
-.total-strip {
+.owner-shell .total-strip {
   border-radius: 12px;
   margin: 0;
   padding: 12px 14px;
   background: var(--dash-ink);
+}
+
+.customer-page .total-strip,
+.success-card .total-strip {
+  background: #2f2117;
+  color: #fff3e1;
 }
 
 .order-meta-grid {
