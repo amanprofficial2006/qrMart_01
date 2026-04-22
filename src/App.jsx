@@ -13,7 +13,7 @@ function App() {
   }
 
   if (path.startsWith("/register") || path.startsWith("/owner/register")) {
-    return <OwnerAuth mode="register" />;
+    return <LandingPage startOpen />;
   }
 
   if (path.startsWith("/login") || path.startsWith("/owner/login")) {

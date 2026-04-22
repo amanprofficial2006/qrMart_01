@@ -429,6 +429,12 @@ function OwnerDashboard() {
 
   const newOrders = orders.filter((order) => ["placed", "seen"].includes(order.status));
   const historyOrders = orders.filter((order) => !["placed", "seen"].includes(order.status));
+  const availableProducts = products.filter((product) => product.isAvailable).length;
+  const todayKey = new Date().toDateString();
+  const todayOrders = orders.filter((order) => new Date(order.createdAt).toDateString() === todayKey);
+  const todayTotal = todayOrders
+    .filter((order) => !["rejected", "cancelled"].includes(order.status))
+    .reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
   const previewQrUrl = shop?.slug ? `${(qrBaseUrl || getBrowserOrigin()).replace(/\/$/, "")}/shop/${shop.slug}` : "";
 
   return (
@@ -449,11 +455,22 @@ function OwnerDashboard() {
             <p className="eyebrow">Owner panel</p>
             <h1>{shop?.name || "Your shop"}</h1>
             <p className="muted">Logged in as {owner?.name}</p>
+            <div className="dashboard-meta" aria-label="Shop quick stats">
+              <span>{newOrders.length} new orders</span>
+              <span>{availableProducts} active items</span>
+            </div>
           </div>
         </div>
-        <button className="ghost-button compact-button" type="button" onClick={logout}>
-          Logout
-        </button>
+        <div className="dashboard-actions">
+          {shop?.slug ? (
+            <a className="ghost-button compact-button" href={`/shop/${shop.slug}`} target="_blank" rel="noreferrer">
+              View shop
+            </a>
+          ) : null}
+          <button className="ghost-button compact-button" type="button" onClick={logout}>
+            Logout
+          </button>
+        </div>
       </header>
 
       <section className="notification-card">
@@ -484,18 +501,26 @@ function OwnerDashboard() {
 
       {error ? <div className="inline-error">{error}</div> : null}
 
-      <section className="metric-grid">
-        <article className="metric-card">
+      <section className="metric-grid" aria-label="Dashboard summary">
+        <article className="metric-card metric-card-primary">
           <span>New orders</span>
           <strong>{newOrders.length}</strong>
+          <p className="metric-note">Needs action now</p>
+        </article>
+        <article className="metric-card">
+          <span>Today total</span>
+          <strong>Rs. {todayTotal}</strong>
+          <p className="metric-note">{todayOrders.length} orders today</p>
         </article>
         <article className="metric-card">
           <span>Products</span>
           <strong>{products.length}</strong>
+          <p className="metric-note">{availableProducts} available</p>
         </article>
         <article className="metric-card">
           <span>QR link</span>
           <strong>{shop?.slug ? "Ready" : "Pending"}</strong>
+          <p className="metric-note">{shop?.slug ? "Customers can scan" : "Complete shop setup"}</p>
         </article>
       </section>
 
@@ -613,10 +638,14 @@ function OwnerDashboard() {
                 <article className="owner-list-card" key={product._id}>
                   {product.imageUrl ? (
                     <SafeImage className="owner-product-image" src={assetUrl(product.imageUrl)} alt="" />
-                  ) : null}
+                  ) : (
+                    <div className="owner-product-image owner-product-placeholder" aria-hidden="true">
+                      {(product.name || "?").charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   <div>
                     <h3>{product.name}</h3>
-                    <p className="muted">
+                    <p className="muted owner-product-meta">
                       Rs. {product.price} - {product.category || "General"} - {product.isAvailable ? "Available" : "Hidden"}
                     </p>
                   </div>

@@ -30,8 +30,8 @@ if (firebaseConfig.apiKey && firebaseConfig.messagingSenderId && firebaseConfig.
 
     self.registration.showNotification(notification.title || "New Order", {
       body: notification.body || data.orderSummary || "A new order was placed.",
-      icon: "/favicon.svg",
-      badge: "/favicon.svg",
+      icon: "/favicon.png",
+      badge: "/favicon.png",
       tag: data.orderId ? `order-${data.orderId}` : "new-order",
       requireInteraction: true,
       data: {

@@ -217,7 +217,7 @@ export function showForegroundOrderAlert(order) {
   if ("Notification" in window && Notification.permission === "granted") {
     new Notification("New Order", {
       body: `${customerName}: ${itemSummary} - Rs. ${order.totalAmount}`,
-      icon: "/favicon.svg",
+      icon: "/favicon.png",
       tag: `order-${order._id}`,
       requireInteraction: true
     });

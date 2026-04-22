@@ -2,9 +2,28 @@ import React, { useEffect, useState } from "react";
 import { API_BASE_URL, assetUrl } from "./api.js";
 import { createCustomerNotificationToken } from "./notifications.js";
 
-function getSlugFromPath() {
-  const match = window.location.pathname.match(/^\/(?:shop|s)\/([^/]+)/);
-  return match ? decodeURIComponent(match[1]) : "";
+const customerSteps = [
+  { id: "menu", label: "Menu" },
+  { id: "cart", label: "Cart" },
+  { id: "checkout", label: "Details" },
+  { id: "payment", label: "Payment" }
+];
+
+const stepIds = customerSteps.map((step) => step.id);
+
+function getShopPathInfo() {
+  const match = window.location.pathname.match(/^\/(shop|s)\/([^/]+)(?:\/([^/]+))?/);
+
+  if (!match) {
+    return { slug: "", basePath: "", step: "menu" };
+  }
+
+  const step = stepIds.includes(match[3]) ? match[3] : "menu";
+  return {
+    slug: decodeURIComponent(match[2]),
+    basePath: `/${match[1]}/${match[2]}`,
+    step
+  };
 }
 
 function groupByCategory(products) {
@@ -49,7 +68,9 @@ function SafeImage({ src, fallback = null, ...props }) {
 }
 
 function CustomerShop() {
-  const [slug] = useState(getSlugFromPath);
+  const [pathInfo] = useState(getShopPathInfo);
+  const [slug] = useState(pathInfo.slug);
+  const [activeStep, setActiveStep] = useState(pathInfo.step);
   const [shop, setShop] = useState(null);
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState({});
@@ -64,6 +85,15 @@ function CustomerShop() {
   const [order, setOrder] = useState(null);
   const [customerNotificationStatus, setCustomerNotificationStatus] = useState("");
   const [enablingOrderUpdates, setEnablingOrderUpdates] = useState(false);
+
+  useEffect(() => {
+    function syncStepFromUrl() {
+      setActiveStep(getShopPathInfo().step);
+    }
+
+    window.addEventListener("popstate", syncStepFromUrl);
+    return () => window.removeEventListener("popstate", syncStepFromUrl);
+  }, []);
 
   useEffect(() => {
     if (!slug) {
@@ -130,6 +160,79 @@ function CustomerShop() {
   const totalAmount = itemTotal + deliveryCharge;
   const paymentConfigured = Boolean(shop?.payment?.upiId || shop?.payment?.qrCodeUrl);
   const upiLink = buildUpiLink(shop, totalAmount);
+  const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+
+  useEffect(() => {
+    if (!cartItems.length && ["checkout", "payment"].includes(activeStep)) {
+      navigateStep("menu", true);
+    }
+  }, [activeStep, cartItems.length]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [activeStep]);
+
+  function navigateStep(step, replace = false) {
+    const nextPath = step === "menu" ? pathInfo.basePath : `${pathInfo.basePath}/${step}`;
+
+    if (nextPath && window.location.pathname !== nextPath) {
+      const method = replace ? "replaceState" : "pushState";
+      window.history[method]({ customerStep: step }, "", nextPath);
+    }
+
+    setActiveStep(step);
+  }
+
+  function goToStep(step) {
+    setError("");
+
+    if (["checkout", "payment"].includes(step) && !cartItems.length) {
+      setError("Please add at least one item first.");
+      navigateStep("menu");
+      return;
+    }
+
+    if (step === "payment" && !customer.address.trim()) {
+      setError("Delivery address is required before payment.");
+      navigateStep("checkout");
+      return;
+    }
+
+    navigateStep(step);
+  }
+
+  function continueToCheckout() {
+    if (!cartItems.length) {
+      setError("Please add at least one item first.");
+      navigateStep("menu");
+      return;
+    }
+
+    setError("");
+    navigateStep("checkout");
+  }
+
+  function continueToPayment() {
+    if (!cartItems.length) {
+      setError("Please add at least one item first.");
+      navigateStep("menu");
+      return;
+    }
+
+    if (!customer.address.trim()) {
+      setError("Delivery address is required.");
+      return;
+    }
+
+    setError("");
+    navigateStep("payment");
+  }
+
+  function placeAnotherOrder() {
+    setOrder(null);
+    setCustomerNotificationStatus("");
+    navigateStep("menu", true);
+  }
 
   function changeQuantity(productId, direction) {
     setCart((current) => {
@@ -297,7 +400,7 @@ function CustomerShop() {
             {enablingOrderUpdates ? "Enabling updates..." : "Enable order update notifications"}
           </button>
           {customerNotificationStatus ? <p className="location-note">{customerNotificationStatus}</p> : null}
-          <button className="ghost-button" type="button" onClick={() => setOrder(null)}>
+          <button className="ghost-button" type="button" onClick={placeAnotherOrder}>
             Place another order
           </button>
         </section>
@@ -306,36 +409,87 @@ function CustomerShop() {
   }
 
   const groupedProducts = groupByCategory(products);
+  const categoryEntries = Object.entries(groupedProducts);
+  const activeStepIndex = customerSteps.findIndex((step) => step.id === activeStep);
+  const shopInitial = (shop.name || "S").charAt(0).toUpperCase();
 
   return (
-    <main className="page">
-      <header className="hero shop-hero">
-        {shop.logoUrl ? <SafeImage className="shop-logo" src={assetUrl(shop.logoUrl)} alt={`${shop.name} logo`} /> : null}
-        <p className="eyebrow">Scan. Select. Order.</p>
-        <h1>{shop.name}</h1>
-        {shop.description ? <p>{shop.description}</p> : null}
-        {shop.address ? <p>{shop.address}</p> : null}
+    <main className={`page customer-page customer-step-${activeStep}`}>
+      <header className="customer-shop-header">
+        <div className="customer-shop-title">
+          <SafeImage
+            className="customer-shop-logo"
+            src={assetUrl(shop.logoUrl)}
+            alt={`${shop.name} logo`}
+            fallback={
+              <div className="customer-shop-logo customer-shop-logo-fallback" aria-hidden="true">
+                {shopInitial}
+              </div>
+            }
+          />
+          <div>
+            <p className="eyebrow">Scan. Select. Order.</p>
+            <h1>{shop.name}</h1>
+            {shop.description ? <p className="customer-shop-subline">{shop.description}</p> : null}
+            {shop.address ? <p className="customer-shop-address">{shop.address}</p> : null}
+          </div>
+        </div>
+        <button className="customer-cart-chip" type="button" onClick={() => goToStep("cart")}>
+          <span>Cart</span>
+          <strong>{cartCount}</strong>
+        </button>
       </header>
+
+      <nav className="customer-stepper" aria-label="Order steps">
+        {customerSteps.map((step, index) => (
+          <button
+            className={`${activeStep === step.id ? "active" : ""} ${index < activeStepIndex ? "complete" : ""}`}
+            type="button"
+            key={step.id}
+            onClick={() => goToStep(step.id)}
+            aria-current={activeStep === step.id ? "step" : undefined}
+          >
+            <span>{index + 1}</span>
+            {step.label}
+          </button>
+        ))}
+      </nav>
 
       {error ? <div className="inline-error">{error}</div> : null}
 
-      <section className="layout">
-        <div className="menu">
-          {Object.entries(groupedProducts).map(([category, items]) => (
-            <section className="category" key={category}>
-              <h2>{category}</h2>
-              <div className="product-grid">
-                {items.map((product) => (
-                  <article className="product-card" key={product._id}>
+      {activeStep === "menu" ? (
+        <section className="customer-screen customer-menu-screen">
+          <div className="customer-screen-head">
+            <div>
+              <p className="eyebrow">Product list</p>
+              <h2>Choose your items</h2>
+            </div>
+            <span className="customer-count-pill">{products.length} items</span>
+          </div>
+
+          <div className="customer-category-list">
+            {categoryEntries.map(([category, items]) => (
+              <section className="customer-category" key={category}>
+                <h3>{category}</h3>
+                <div className="customer-product-list">
+                  {items.map((product) => (
+                    <article
+                      className={`customer-product-card ${cart[product._id] ? "is-selected" : ""}`}
+                      key={product._id}
+                    >
                     {product.imageUrl ? (
-                      <SafeImage className="product-thumb" src={assetUrl(product.imageUrl)} alt={product.name} />
-                    ) : null}
-                    <div className="product-copy">
+                        <SafeImage className="customer-product-thumb" src={assetUrl(product.imageUrl)} alt={product.name} />
+                      ) : (
+                        <div className="customer-product-thumb customer-product-placeholder" aria-hidden="true">
+                          {(product.name || "?").charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="customer-product-copy">
                       <h3>{product.name}</h3>
                       {product.description ? <p>{product.description}</p> : null}
                       <strong>Rs. {product.price}</strong>
                     </div>
-                    <div className="quantity-control">
+                      <div className="quantity-control customer-quantity">
                       <button type="button" onClick={() => changeQuantity(product._id, -1)} aria-label="Decrease">
                         -
                       </button>
@@ -349,41 +503,88 @@ function CustomerShop() {
               </div>
             </section>
           ))}
-        </div>
+          </div>
+        </section>
+      ) : null}
 
-        <form className="cart-card checkout-card" onSubmit={submitOrder}>
-          <p className="eyebrow">Your cart</p>
+      {activeStep === "cart" ? (
+        <section className="customer-screen customer-cart-screen">
+          <div className="customer-screen-head">
+            <div>
+              <p className="eyebrow">Your cart</p>
+              <h2>Review items</h2>
+            </div>
+            <span className="customer-count-pill">{cartCount} selected</span>
+          </div>
+
           {cartItems.length ? (
-            <div className="cart-items">
+            <div className="customer-cart-list">
               {cartItems.map((item) => (
-                <div className="cart-row" key={item._id}>
-                  <span>
-                    {item.quantity} x {item.name}
-                  </span>
+                <article className="customer-cart-item" key={item._id}>
+                  <div>
+                    <h3>{item.name}</h3>
+                    <p className="muted">Rs. {item.price} each</p>
+                  </div>
+                  <div className="quantity-control customer-quantity">
+                    <button type="button" onClick={() => changeQuantity(item._id, -1)} aria-label="Decrease">
+                      -
+                    </button>
+                    <span>{item.quantity}</span>
+                    <button type="button" onClick={() => changeQuantity(item._id, 1)} aria-label="Increase">
+                      +
+                    </button>
+                  </div>
                   <strong>Rs. {item.price * item.quantity}</strong>
-                </div>
+                </article>
               ))}
             </div>
           ) : (
-            <p className="empty-cart">Add items from the menu.</p>
+            <div className="customer-empty-state">
+              <p className="empty-cart">Your cart is empty.</p>
+              <button className="ghost-button" type="button" onClick={() => goToStep("menu")}>
+                Browse menu
+              </button>
+            </div>
           )}
 
-          <div className="total-strip">
-            <span>Final total</span>
-            <strong>Rs. {totalAmount}</strong>
-          </div>
-          <div className="price-breakdown">
-            <div>
-              <span>Item total</span>
-              <strong>Rs. {itemTotal}</strong>
+          <section className="customer-total-card">
+            <div className="price-breakdown">
+              <div>
+                <span>Item total</span>
+                <strong>Rs. {itemTotal}</strong>
+              </div>
+              <div>
+                <span>Delivery charge</span>
+                <strong>Rs. {deliveryCharge}</strong>
+              </div>
             </div>
+            <div className="total-strip">
+              <span>Final total</span>
+              <strong>Rs. {totalAmount}</strong>
+            </div>
+          </section>
+
+          <div className="customer-screen-actions">
+            <button className="ghost-button" type="button" onClick={() => goToStep("menu")}>
+              Add more items
+            </button>
+            <button className="submit-button" type="button" onClick={continueToCheckout} disabled={!cartItems.length}>
+              Continue
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {activeStep === "checkout" ? (
+        <section className="customer-screen customer-checkout-screen">
+          <div className="customer-screen-head">
             <div>
-              <span>Delivery charge</span>
-              <strong>Rs. {deliveryCharge}</strong>
+              <p className="eyebrow">Delivery details</p>
+              <h2>Where should we send it?</h2>
             </div>
           </div>
 
-          <div className="checkout-fields">
+          <div className="checkout-fields customer-fields">
             <label>
               Name
               <input
@@ -427,13 +628,53 @@ function CustomerShop() {
             </label>
           </div>
 
-          <p className="location-note">{locationStatus}</p>
+          <p className="location-note customer-location-note">{locationStatus}</p>
 
-          <section className="payment-box">
+          <section className="customer-total-card customer-mini-total">
+            <div className="total-strip">
+              <span>Final total</span>
+              <strong>Rs. {totalAmount}</strong>
+            </div>
+          </section>
+
+          <div className="customer-screen-actions">
+            <button className="ghost-button" type="button" onClick={() => goToStep("cart")}>
+              Back to cart
+            </button>
+            <button className="submit-button" type="button" onClick={continueToPayment}>
+              Continue to payment
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {activeStep === "payment" ? (
+        <form id="customer-payment-form" className="customer-screen customer-payment-screen" onSubmit={submitOrder}>
+          <div className="customer-screen-head">
             <div>
               <p className="eyebrow">Payment</p>
-              <h3>Pay before placing order</h3>
+              <h2>Pay and place order</h2>
             </div>
+          </div>
+
+          <section className="customer-total-card">
+            <div className="price-breakdown">
+              <div>
+                <span>Item total</span>
+                <strong>Rs. {itemTotal}</strong>
+              </div>
+              <div>
+                <span>Delivery charge</span>
+                <strong>Rs. {deliveryCharge}</strong>
+              </div>
+            </div>
+            <div className="total-strip">
+              <span>Final total</span>
+              <strong>Rs. {totalAmount}</strong>
+            </div>
+          </section>
+
+          <section className="payment-box customer-payment-box">
             {paymentConfigured ? (
               <>
                 {shop.payment?.qrCodeUrl ? (
@@ -466,11 +707,43 @@ function CustomerShop() {
             )}
           </section>
 
-          <button className="submit-button" type="submit" disabled={submitting || !cartItems.length}>
-            {submitting ? "Placing order..." : "Place order"}
-          </button>
+          <div className="customer-screen-actions">
+            <button className="ghost-button" type="button" onClick={() => goToStep("checkout")}>
+              Back to details
+            </button>
+            <button className="submit-button" type="submit" disabled={submitting || !cartItems.length}>
+              {submitting ? "Placing order..." : "Place order"}
+            </button>
+          </div>
         </form>
-      </section>
+      ) : null}
+
+      <aside className="customer-bottom-bar" aria-label="Order summary">
+        <div>
+          <span>{cartCount ? `${cartCount} item${cartCount > 1 ? "s" : ""}` : "No items"}</span>
+          <strong>Rs. {totalAmount}</strong>
+        </div>
+        {activeStep === "menu" ? (
+          <button type="button" onClick={() => goToStep("cart")} disabled={!cartItems.length}>
+            View cart
+          </button>
+        ) : null}
+        {activeStep === "cart" ? (
+          <button type="button" onClick={continueToCheckout} disabled={!cartItems.length}>
+            Details
+          </button>
+        ) : null}
+        {activeStep === "checkout" ? (
+          <button type="button" onClick={continueToPayment}>
+            Payment
+          </button>
+        ) : null}
+        {activeStep === "payment" ? (
+          <button type="submit" form="customer-payment-form" disabled={submitting || !cartItems.length}>
+            {submitting ? "Placing..." : "Place order"}
+          </button>
+        ) : null}
+      </aside>
     </main>
   );
 }
