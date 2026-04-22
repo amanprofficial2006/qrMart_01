@@ -83,6 +83,7 @@ function CustomerShop() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [order, setOrder] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const [customerNotificationStatus, setCustomerNotificationStatus] = useState("");
   const [enablingOrderUpdates, setEnablingOrderUpdates] = useState(false);
 
@@ -148,6 +149,28 @@ function CustomerShop() {
     );
   }, []);
 
+  useEffect(() => {
+    if (!imagePreview) {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function closeOnEscape(event) {
+      if (event.key === "Escape") {
+        setImagePreview(null);
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [imagePreview]);
+
   const cartItems = products
     .map((product) => ({
       ...product,
@@ -157,7 +180,8 @@ function CustomerShop() {
 
   const itemTotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const deliveryCharge = Number(shop?.settings?.deliveryCharge || 0);
-  const totalAmount = itemTotal + deliveryCharge;
+  const payableDeliveryCharge = cartItems.length ? deliveryCharge : 0;
+  const totalAmount = itemTotal + payableDeliveryCharge;
   const paymentConfigured = Boolean(shop?.payment?.upiId || shop?.payment?.qrCodeUrl);
   const upiLink = buildUpiLink(shop, totalAmount);
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
@@ -232,6 +256,17 @@ function CustomerShop() {
     setOrder(null);
     setCustomerNotificationStatus("");
     navigateStep("menu", true);
+  }
+
+  function openImagePreview(item) {
+    if (!item?.imageUrl) {
+      return;
+    }
+
+    setImagePreview({
+      src: assetUrl(item.imageUrl),
+      title: item.name || "Product image"
+    });
   }
 
   function changeQuantity(productId, direction) {
@@ -477,8 +512,15 @@ function CustomerShop() {
                       className={`customer-product-card ${cart[product._id] ? "is-selected" : ""}`}
                       key={product._id}
                     >
-                    {product.imageUrl ? (
-                        <SafeImage className="customer-product-thumb" src={assetUrl(product.imageUrl)} alt={product.name} />
+                      {product.imageUrl ? (
+                        <button
+                          className="customer-image-button"
+                          type="button"
+                          onClick={() => openImagePreview(product)}
+                          aria-label={`Open ${product.name} image`}
+                        >
+                          <SafeImage className="customer-product-thumb" src={assetUrl(product.imageUrl)} alt={product.name} />
+                        </button>
                       ) : (
                         <div className="customer-product-thumb customer-product-placeholder" aria-hidden="true">
                           {(product.name || "?").charAt(0).toUpperCase()}
@@ -522,7 +564,14 @@ function CustomerShop() {
               {cartItems.map((item) => (
                 <article className="customer-cart-item" key={item._id}>
                   {item.imageUrl ? (
-                    <SafeImage className="customer-cart-thumb" src={assetUrl(item.imageUrl)} alt={item.name} />
+                    <button
+                      className="customer-image-button"
+                      type="button"
+                      onClick={() => openImagePreview(item)}
+                      aria-label={`Open ${item.name} image`}
+                    >
+                      <SafeImage className="customer-cart-thumb" src={assetUrl(item.imageUrl)} alt={item.name} />
+                    </button>
                   ) : (
                     <div className="customer-cart-thumb customer-product-placeholder" aria-hidden="true">
                       {(item.name || "?").charAt(0).toUpperCase()}
@@ -562,7 +611,7 @@ function CustomerShop() {
               </div>
               <div>
                 <span>Delivery charge</span>
-                <strong>Rs. {deliveryCharge}</strong>
+                <strong>Rs. {payableDeliveryCharge}</strong>
               </div>
             </div>
             <div className="total-strip">
@@ -672,7 +721,7 @@ function CustomerShop() {
               </div>
               <div>
                 <span>Delivery charge</span>
-                <strong>Rs. {deliveryCharge}</strong>
+                <strong>Rs. {payableDeliveryCharge}</strong>
               </div>
             </div>
             <div className="total-strip">
@@ -723,6 +772,29 @@ function CustomerShop() {
             </button>
           </div>
         </form>
+      ) : null}
+
+      {imagePreview ? (
+        <section
+          className="customer-image-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${imagePreview.title} preview`}
+          onClick={() => setImagePreview(null)}
+        >
+          <div className="customer-image-modal-card" onClick={(event) => event.stopPropagation()}>
+            <button
+              className="customer-image-close"
+              type="button"
+              onClick={() => setImagePreview(null)}
+              aria-label="Close image preview"
+            >
+              x
+            </button>
+            <img src={imagePreview.src} alt={imagePreview.title} />
+            <p>{imagePreview.title}</p>
+          </div>
+        </section>
       ) : null}
 
       <aside className="customer-bottom-bar" aria-label="Order summary">
