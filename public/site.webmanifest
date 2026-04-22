@@ -1,0 +1,20 @@
+{
+  "name": "qrMart",
+  "short_name": "qrMart",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fff6ef",
+  "theme_color": "#c94f27",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

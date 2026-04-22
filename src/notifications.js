@@ -15,6 +15,103 @@ const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 const ORDER_ALERT_SOUND_URL = "/freesound_community-phone-ringing-48238.mp3";
 let orderAlertAudio = null;
 
+function isIosDevice() {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  const userAgent = navigator.userAgent || "";
+  return /iPad|iPhone|iPod/.test(userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function isStandaloneWebApp() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
+}
+
+function getPushSupportError() {
+  if (typeof window === "undefined") {
+    return "Push notifications are only available in the browser.";
+  }
+
+  if (!window.isSecureContext) {
+    return "Push notifications work only on HTTPS websites. If you opened this on your phone using a local IP or HTTP link, open the HTTPS deployed site instead.";
+  }
+
+  if (isIosDevice() && !isStandaloneWebApp()) {
+    return "On iPhone and iPad, push notifications work only after adding this site to the Home Screen and opening it from there.";
+  }
+
+  if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+    return "This browser does not support push notifications.";
+  }
+
+  return "";
+}
+
+function requestNotificationPermission() {
+  return new Promise((resolve, reject) => {
+    if (!("Notification" in window)) {
+      resolve("denied");
+      return;
+    }
+
+    let settled = false;
+    const finish = (value) => {
+      if (!settled) {
+        settled = true;
+        resolve(value);
+      }
+    };
+
+    try {
+      const result = Notification.requestPermission((permission) => {
+        finish(permission);
+      });
+
+      if (result && typeof result.then === "function") {
+        result.then(finish).catch(reject);
+        return;
+      }
+
+      if (typeof result === "string") {
+        finish(result);
+        return;
+      }
+    } catch (error) {
+      reject(error);
+      return;
+    }
+
+    finish(Notification.permission || "default");
+  });
+}
+
+function toNotificationErrorMessage(error) {
+  const message = String(error?.message || error || "");
+
+  if (!message) {
+    return "Unable to enable push notifications on this device.";
+  }
+
+  if (/messaging\/unsupported-browser/i.test(message) || /supported browsers/i.test(message)) {
+    return "This browser does not support Firebase web push notifications.";
+  }
+
+  if (/permission/i.test(message) && /block|denied/i.test(message)) {
+    return "Notification permission is blocked for this site in your browser settings.";
+  }
+
+  if (/service worker/i.test(message) && !window.isSecureContext) {
+    return "Push notifications require HTTPS. Open the deployed HTTPS site on your phone.";
+  }
+
+  return message;
+}
+
 function isLikelyValidVapidKey(value) {
   const key = String(value || "").trim();
 
@@ -86,10 +183,12 @@ async function registerMessagingServiceWorker() {
 }
 
 export async function registerOwnerNotifications(apiFetch) {
-  if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+  const supportError = getPushSupportError();
+
+  if (supportError) {
     return {
       ok: false,
-      message: "This browser does not support push notifications."
+      message: supportError
     };
   }
 
@@ -116,7 +215,7 @@ export async function registerOwnerNotifications(apiFetch) {
     };
   }
 
-  const permission = await Notification.requestPermission();
+  const permission = await requestNotificationPermission();
 
   if (permission !== "granted") {
     return {
@@ -125,28 +224,35 @@ export async function registerOwnerNotifications(apiFetch) {
     };
   }
 
-  const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-  const messaging = getMessaging(app);
-  const serviceWorkerRegistration = await registerMessagingServiceWorker();
-  const fcmToken = await getToken(messaging, {
-    vapidKey,
-    serviceWorkerRegistration
-  });
+  try {
+    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const messaging = getMessaging(app);
+    const serviceWorkerRegistration = await registerMessagingServiceWorker();
+    const fcmToken = await getToken(messaging, {
+      vapidKey,
+      serviceWorkerRegistration
+    });
 
-  if (!fcmToken) {
+    if (!fcmToken) {
+      return {
+        ok: false,
+        message: "Unable to create an FCM token for this browser."
+      };
+    }
+
+    await apiFetch("/api/v1/owner/devices", {
+      method: "POST",
+      body: JSON.stringify({
+        platform: "web",
+        fcmToken
+      })
+    });
+  } catch (error) {
     return {
       ok: false,
-      message: "Unable to create an FCM token for this browser."
+      message: toNotificationErrorMessage(error)
     };
   }
-
-  await apiFetch("/api/v1/owner/devices", {
-    method: "POST",
-    body: JSON.stringify({
-      platform: "web",
-      fcmToken
-    })
-  });
 
   return {
     ok: true,
@@ -155,10 +261,12 @@ export async function registerOwnerNotifications(apiFetch) {
 }
 
 export async function createCustomerNotificationToken() {
-  if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+  const supportError = getPushSupportError();
+
+  if (supportError) {
     return {
       ok: false,
-      message: "This browser does not support push notifications."
+      message: supportError
     };
   }
 
@@ -178,7 +286,7 @@ export async function createCustomerNotificationToken() {
     };
   }
 
-  const permission = await Notification.requestPermission();
+  const permission = await requestNotificationPermission();
 
   if (permission !== "granted") {
     return {
@@ -187,26 +295,33 @@ export async function createCustomerNotificationToken() {
     };
   }
 
-  const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-  const messaging = getMessaging(app);
-  const serviceWorkerRegistration = await registerMessagingServiceWorker();
-  const fcmToken = await getToken(messaging, {
-    vapidKey,
-    serviceWorkerRegistration
-  });
+  try {
+    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const messaging = getMessaging(app);
+    const serviceWorkerRegistration = await registerMessagingServiceWorker();
+    const fcmToken = await getToken(messaging, {
+      vapidKey,
+      serviceWorkerRegistration
+    });
 
-  if (!fcmToken) {
+    if (!fcmToken) {
+      return {
+        ok: false,
+        message: "Unable to create notification token."
+      };
+    }
+
+    return {
+      ok: true,
+      fcmToken,
+      message: "Order update notifications enabled."
+    };
+  } catch (error) {
     return {
       ok: false,
-      message: "Unable to create notification token."
+      message: toNotificationErrorMessage(error)
     };
   }
-
-  return {
-    ok: true,
-    fcmToken,
-    message: "Order update notifications enabled."
-  };
 }
 
 export function showForegroundOrderAlert(order) {

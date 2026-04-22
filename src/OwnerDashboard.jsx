@@ -291,6 +291,8 @@ function OwnerDashboard() {
         setNotificationsEnabled(true);
         sessionStorage.setItem(NOTIFICATIONS_ENABLED_KEY, "true");
         setToast(result.message);
+      } else {
+        setError(result.message);
       }
     } catch (err) {
       setError(err.message);
