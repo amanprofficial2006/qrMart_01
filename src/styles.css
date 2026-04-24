@@ -1204,7 +1204,7 @@ input[type="file"] {
 }
 
 .landing-nav,
-.owner-utility-strip,
+.landing-utility-strip,
 .landing-features {
   width: min(1180px, calc(100% - 48px));
   margin-inline: auto;
@@ -1538,7 +1538,7 @@ input[type="file"] {
   text-align: center;
 }
 
-.owner-utility-strip {
+.landing-utility-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
@@ -1546,7 +1546,7 @@ input[type="file"] {
   margin-bottom: 18px;
 }
 
-.owner-utility-strip div {
+.landing-utility-strip div {
   min-height: 108px;
   border: 1px solid var(--landing-line);
   border-radius: 8px;
@@ -1555,18 +1555,18 @@ input[type="file"] {
   box-shadow: 0 16px 36px rgba(23, 35, 31, 0.07);
 }
 
-.owner-utility-strip strong,
-.owner-utility-strip span {
+.landing-utility-strip strong,
+.landing-utility-strip span {
   display: block;
 }
 
-.owner-utility-strip strong {
+.landing-utility-strip strong {
   margin-bottom: 8px;
   color: var(--theme-dark);
   font-size: 1.05rem;
 }
 
-.owner-utility-strip span {
+.landing-utility-strip span {
   color: var(--landing-muted);
   line-height: 1.45;
 }
@@ -2536,7 +2536,7 @@ input[type="file"] {
   .checkout-fields,
   .landing-features,
   .owner-proof,
-  .owner-utility-strip,
+  .landing-utility-strip,
   .preview-grid,
   .auth-shell,
   .auth-field-grid {

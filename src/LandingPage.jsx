@@ -374,7 +374,7 @@ function LandingPage({ startOpen = false }) {
         </div>
       </section>
 
-      <section className="owner-utility-strip" aria-label="Why shop owners use qrMart">
+      <section className="landing-utility-strip" aria-label="Why shop owners use qrMart">
         <div>
           <strong>Less counter rush</strong>
           <span>Customers order while they wait.</span>
