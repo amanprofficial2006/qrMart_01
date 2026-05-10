@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import { API_BASE_URL, apiFetch, assetUrl, clearToken, getToken } from "./api.js";
-import { registerOwnerNotifications, showForegroundOrderAlert } from "./notifications.js";
+import {
+  bindOwnerNotificationSoundBridge,
+  registerOwnerNotifications,
+  showForegroundOrderAlert
+} from "./notifications.js";
 
 const tabs = [
   { id: "orders", label: "Orders" },
@@ -159,6 +163,10 @@ function OwnerDashboard() {
   const [enablingNotifications, setEnablingNotifications] = useState(false);
   const [orderView, setOrderView] = useState("active");
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+
+  useEffect(() => {
+    bindOwnerNotificationSoundBridge();
+  }, []);
 
   useEffect(() => {
     if (!token) {

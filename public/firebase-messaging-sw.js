@@ -1,6 +1,9 @@
 importScripts("https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js");
 
+const ORDER_ALERT_SOUND = "order_incoming";
+const OWNER_DASHBOARD_PATHS = ["/dashboard", "/owner/dashboard"];
+
 self.addEventListener("install", () => {
   self.skipWaiting();
 });
@@ -24,20 +27,46 @@ if (firebaseConfig.apiKey && firebaseConfig.messagingSenderId && firebaseConfig.
   firebase.initializeApp(firebaseConfig);
   const messaging = firebase.messaging();
 
-  messaging.onBackgroundMessage((payload) => {
+  function isOwnerDashboardClient(client) {
+    try {
+      const pathname = new URL(client.url).pathname;
+      return OWNER_DASHBOARD_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  messaging.onBackgroundMessage(async (payload) => {
     const notification = payload.notification || {};
     const data = payload.data || {};
+    const type = String(data.type || "").toUpperCase();
+    const isNewOrder = type === "NEW_ORDER";
+    const windowClients = isNewOrder
+      ? await self.clients.matchAll({ type: "window", includeUncontrolled: true })
+      : [];
+    const ownerClients = windowClients.filter(isOwnerDashboardClient);
 
-    self.registration.showNotification(notification.title || "New Order", {
+    await self.registration.showNotification(notification.title || (isNewOrder ? "New Order" : "Notification"), {
       body: notification.body || data.orderSummary || "A new order was placed.",
       icon: "/favicon.png",
       badge: "/favicon.png",
       tag: data.orderId ? `order-${data.orderId}` : "new-order",
       requireInteraction: true,
+      silent: isNewOrder && ownerClients.length > 0,
       data: {
         url: "/dashboard"
       }
     });
+
+    if (isNewOrder) {
+      for (const client of ownerClients) {
+        client.postMessage({
+          type: "OWNER_ORDER_ALERT",
+          sound: ORDER_ALERT_SOUND,
+          orderId: data.orderId || ""
+        });
+      }
+    }
   });
 }
 

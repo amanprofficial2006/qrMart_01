@@ -1,19 +1,37 @@
 import { initializeApp, getApp, getApps } from "firebase/app";
 import { getMessaging, getToken } from "firebase/messaging";
 
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+const firebaseConfigDefaults = {
+  apiKey: "AIzaSyBEd31CoL3fpBRQSfBJP9u2K4gVSZe0zno",
+  authDomain: "qrmart-fc52c.firebaseapp.com",
+  projectId: "qrmart-fc52c",
+  storageBucket: "qrmart-fc52c.firebasestorage.app",
+  messagingSenderId: "51233536961",
+  appId: "1:51233536961:web:d6803b4f93f84f7a690d40",
+  measurementId: "G-K1CKQ55P19"
 };
 
-const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfigDefaults.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigDefaults.authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseConfigDefaults.projectId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfigDefaults.storageBucket,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfigDefaults.messagingSenderId,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseConfigDefaults.appId,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || firebaseConfigDefaults.measurementId
+};
+
+const vapidKey =
+  import.meta.env.VITE_FIREBASE_VAPID_KEY ||
+  "BCabXVvEYG-AIXTlbpAyyRXPczvxy4t0OglXx5HBL8BQAwfcJ3h5myLmDNFd3Ed_hCD3C5RzXWtXaHVqv761N5w";
 const ORDER_ALERT_SOUND_URL = "/freesound_community-phone-ringing-48238.mp3";
+const ORDER_ALERT_VIBRATION_PATTERN = [500, 150, 500, 150, 500];
+const ORDER_ALERT_DEDUPE_MS = 12000;
 let orderAlertAudio = null;
+let orderAlertAudioUnlocked = false;
+let orderAlertUnlockHandler = null;
+let ownerNotificationBridgeAttached = false;
+const recentOrderAlerts = new Map();
 
 function isIosDevice() {
   if (typeof navigator === "undefined") {
@@ -147,6 +165,104 @@ function serviceWorkerUrl() {
   return `/firebase-messaging-sw.js?${params.toString()}`;
 }
 
+function ensureOrderAlertAudio() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  if (!orderAlertAudio) {
+    orderAlertAudio = new Audio(ORDER_ALERT_SOUND_URL);
+    orderAlertAudio.preload = "auto";
+    orderAlertAudio.playsInline = true;
+    orderAlertAudio.load();
+  }
+
+  return orderAlertAudio;
+}
+
+async function primeOrderAlertAudio() {
+  const audio = ensureOrderAlertAudio();
+
+  if (!audio || orderAlertAudioUnlocked) {
+    return orderAlertAudioUnlocked;
+  }
+
+  try {
+    audio.muted = true;
+    audio.currentTime = 0;
+    const playback = audio.play();
+
+    if (playback && typeof playback.then === "function") {
+      await playback;
+    }
+
+    audio.pause();
+    audio.currentTime = 0;
+    audio.muted = false;
+    orderAlertAudioUnlocked = true;
+    return true;
+  } catch (_error) {
+    audio.pause();
+    audio.currentTime = 0;
+    audio.muted = false;
+    return false;
+  }
+}
+
+function attachOrderAlertUnlockListeners() {
+  if (typeof window === "undefined" || orderAlertUnlockHandler) {
+    return;
+  }
+
+  const events = ["pointerdown", "touchstart", "keydown"];
+  orderAlertUnlockHandler = () => {
+    void primeOrderAlertAudio().then((unlocked) => {
+      if (!unlocked || !orderAlertUnlockHandler) {
+        return;
+      }
+
+      for (const eventName of events) {
+        window.removeEventListener(eventName, orderAlertUnlockHandler);
+      }
+
+      orderAlertUnlockHandler = null;
+    });
+  };
+
+  for (const eventName of events) {
+    window.addEventListener(eventName, orderAlertUnlockHandler, {
+      passive: eventName !== "keydown"
+    });
+  }
+}
+
+function pruneRecentOrderAlerts() {
+  const now = Date.now();
+
+  for (const [orderId, timestamp] of recentOrderAlerts.entries()) {
+    if (now - timestamp > ORDER_ALERT_DEDUPE_MS) {
+      recentOrderAlerts.delete(orderId);
+    }
+  }
+}
+
+function markOrderAlertHandled(orderId) {
+  pruneRecentOrderAlerts();
+
+  const cleanOrderId = String(orderId || "").trim();
+
+  if (!cleanOrderId) {
+    return true;
+  }
+
+  if (recentOrderAlerts.has(cleanOrderId)) {
+    return false;
+  }
+
+  recentOrderAlerts.set(cleanOrderId, Date.now());
+  return true;
+}
+
 function waitForServiceWorkerActivation(registration) {
   if (registration.active) {
     return Promise.resolve(registration);
@@ -182,8 +298,73 @@ async function registerMessagingServiceWorker() {
   return navigator.serviceWorker.ready;
 }
 
+function playOrderAlertSound() {
+  try {
+    const audio = ensureOrderAlertAudio();
+
+    if (!audio) {
+      playFallbackOrderAlertTone();
+      return;
+    }
+
+    audio.muted = false;
+    audio.currentTime = 0;
+    const playback = audio.play();
+
+    if (playback && typeof playback.catch === "function") {
+      playback.catch(() => {
+        attachOrderAlertUnlockListeners();
+        playFallbackOrderAlertTone();
+      });
+    }
+  } catch (_error) {
+    attachOrderAlertUnlockListeners();
+    playFallbackOrderAlertTone();
+  }
+}
+
+function triggerOrderAlertEffects(orderId = "") {
+  if (!markOrderAlertHandled(orderId)) {
+    return;
+  }
+
+  if ("vibrate" in navigator) {
+    navigator.vibrate(ORDER_ALERT_VIBRATION_PATTERN);
+  }
+
+  playOrderAlertSound();
+}
+
+export function bindOwnerNotificationSoundBridge() {
+  if (
+    ownerNotificationBridgeAttached ||
+    typeof window === "undefined" ||
+    !("serviceWorker" in navigator)
+  ) {
+    return;
+  }
+
+  ensureOrderAlertAudio();
+  attachOrderAlertUnlockListeners();
+  ownerNotificationBridgeAttached = true;
+
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    const payload = event.data || {};
+
+    if (payload.type !== "OWNER_ORDER_ALERT" || payload.sound !== "order_incoming") {
+      return;
+    }
+
+    triggerOrderAlertEffects(payload.orderId || "");
+  });
+}
+
 export async function registerOwnerNotifications(apiFetch) {
   const supportError = getPushSupportError();
+
+  ensureOrderAlertAudio();
+  attachOrderAlertUnlockListeners();
+  void primeOrderAlertAudio();
 
   if (supportError) {
     return {
@@ -325,6 +506,7 @@ export async function createCustomerNotificationToken() {
 }
 
 export function showForegroundOrderAlert(order) {
+  const orderId = order?._id || order?.id || "";
   const customerName = order.customer?.name || "Customer";
   const itemSummary = (order.items || [])
     .slice(0, 3)
@@ -335,32 +517,13 @@ export function showForegroundOrderAlert(order) {
     new Notification("New Order", {
       body: `${customerName}: ${itemSummary} - Rs. ${order.totalAmount}`,
       icon: "/favicon.png",
-      tag: `order-${order._id}`,
-      requireInteraction: true
+      tag: `order-${orderId || "new-order"}`,
+      requireInteraction: true,
+      silent: true
     });
   }
 
-  if ("vibrate" in navigator) {
-    navigator.vibrate([500, 150, 500, 150, 500]);
-  }
-
-  try {
-    if (!orderAlertAudio) {
-      orderAlertAudio = new Audio(ORDER_ALERT_SOUND_URL);
-      orderAlertAudio.preload = "auto";
-    }
-
-    orderAlertAudio.currentTime = 0;
-    const playback = orderAlertAudio.play();
-
-    if (playback && typeof playback.catch === "function") {
-      playback.catch(() => {
-        playFallbackOrderAlertTone();
-      });
-    }
-  } catch (_error) {
-    playFallbackOrderAlertTone();
-  }
+  triggerOrderAlertEffects(orderId);
 }
 
 function playFallbackOrderAlertTone() {
