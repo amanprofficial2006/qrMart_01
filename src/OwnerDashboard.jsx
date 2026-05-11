@@ -138,7 +138,10 @@ function formatCurrency(value) {
 }
 
 function statusLabel(status) {
-  return status.charAt(0).toUpperCase() + status.slice(1);
+  return status
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function OwnerDashboard() {
@@ -1064,7 +1067,7 @@ function OrderList({ orders, shopName, onStatus, onSendNotification, emptyText }
             </p>
           ) : null}
           <div className="row-actions">
-            {order.status === "placed" || order.status === "seen" ? (
+            {order.status === "placed" || order.status === "payment_claimed" || order.status === "seen" ? (
               <>
                 <button type="button" onClick={() => onStatus(order._id, "accepted")}>
                   Accept

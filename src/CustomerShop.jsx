@@ -5,11 +5,70 @@ import { createCustomerNotificationToken } from "./notifications.js";
 const customerSteps = [
   { id: "menu", label: "Menu" },
   { id: "cart", label: "Cart" },
-  { id: "checkout", label: "Details" },
+  { id: "verify", label: "Verify" },
   { id: "payment", label: "Payment" }
 ];
 
 const stepIds = customerSteps.map((step) => step.id);
+const CUSTOMER_SESSION_KEY = "qrmart_customer_session";
+const CART_STORAGE_KEY_PREFIX = "qrmart_customer_cart:";
+const STATIC_CUSTOMER_OTP = "142006";
+
+function cartStorageKey(slug) {
+  return `${CART_STORAGE_KEY_PREFIX}${slug}`;
+}
+
+function readCartSession(slug) {
+  if (!slug || typeof window === "undefined") {
+    return {};
+  }
+
+  try {
+    const saved = window.sessionStorage.getItem(cartStorageKey(slug));
+    const parsed = saved ? JSON.parse(saved) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (_error) {
+    return {};
+  }
+}
+
+function saveCartSession(slug, cart) {
+  if (!slug || typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.setItem(cartStorageKey(slug), JSON.stringify(cart));
+}
+
+function readCustomerSession() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const saved = window.localStorage.getItem(CUSTOMER_SESSION_KEY);
+    const parsed = saved ? JSON.parse(saved) : null;
+    return parsed && parsed.token && parsed.customer ? parsed : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function saveCustomerSession(session) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(CUSTOMER_SESSION_KEY, JSON.stringify(session));
+}
+
+function clearCustomerSession() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(CUSTOMER_SESSION_KEY);
+}
 
 function getShopPathInfo() {
   const match = window.location.pathname.match(/^\/(shop|s)\/([^/]+)(?:\/([^/]+))?/);
@@ -73,13 +132,24 @@ function CustomerShop() {
   const [activeStep, setActiveStep] = useState(pathInfo.step);
   const [shop, setShop] = useState(null);
   const [products, setProducts] = useState([]);
-  const [cart, setCart] = useState({});
-  const [customer, setCustomer] = useState({ name: "", phone: "", address: "", note: "" });
+  const [cart, setCart] = useState(() => readCartSession(pathInfo.slug));
+  const [customerSession, setCustomerSession] = useState(readCustomerSession);
+  const [customer, setCustomer] = useState(() => {
+    const savedSession = readCustomerSession();
+    return {
+      name: savedSession?.customer?.name || "",
+      phone: savedSession?.customer?.phone || "",
+      address: "",
+      note: ""
+    };
+  });
+  const [otp, setOtp] = useState("");
   const [location, setLocation] = useState(null);
   const [locationStatus, setLocationStatus] = useState("Detecting location...");
   const [paymentAcknowledged, setPaymentAcknowledged] = useState(false);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [verifying, setVerifying] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [order, setOrder] = useState(null);
@@ -187,10 +257,14 @@ function CustomerShop() {
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
   useEffect(() => {
-    if (!cartItems.length && ["checkout", "payment"].includes(activeStep)) {
+    if (!cartItems.length && ["verify", "payment"].includes(activeStep)) {
       navigateStep("menu", true);
     }
   }, [activeStep, cartItems.length]);
+
+  useEffect(() => {
+    saveCartSession(slug, cart);
+  }, [cart, slug]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -210,22 +284,22 @@ function CustomerShop() {
   function goToStep(step) {
     setError("");
 
-    if (["checkout", "payment"].includes(step) && !cartItems.length) {
+    if (["verify", "payment"].includes(step) && !cartItems.length) {
       setError("Please add at least one item first.");
       navigateStep("menu");
       return;
     }
 
-    if (step === "payment" && !customer.address.trim()) {
-      setError("Delivery address is required before payment.");
-      navigateStep("checkout");
+    if (step === "payment" && !customerSession?.token) {
+      setError("Verify your phone number before payment.");
+      navigateStep("verify");
       return;
     }
 
     navigateStep(step);
   }
 
-  function continueToCheckout() {
+  function continueFromCart() {
     if (!cartItems.length) {
       setError("Please add at least one item first.");
       navigateStep("menu");
@@ -233,28 +307,18 @@ function CustomerShop() {
     }
 
     setError("");
-    navigateStep("checkout");
-  }
-
-  function continueToPayment() {
-    if (!cartItems.length) {
-      setError("Please add at least one item first.");
-      navigateStep("menu");
-      return;
-    }
-
-    if (!customer.address.trim()) {
-      setError("Delivery address is required.");
-      return;
-    }
-
-    setError("");
-    navigateStep("payment");
+    navigateStep(customerSession?.token ? "payment" : "verify");
   }
 
   function placeAnotherOrder() {
     setOrder(null);
     setCustomerNotificationStatus("");
+    setPaymentAcknowledged(false);
+    setCustomer((current) => ({
+      ...current,
+      address: "",
+      note: ""
+    }));
     navigateStep("menu", true);
   }
 
@@ -279,6 +343,74 @@ function CustomerShop() {
     });
   }
 
+  async function verifyCustomer(event) {
+    event.preventDefault();
+    setError("");
+
+    if (!customer.phone.trim()) {
+      setError("Phone number is required for OTP verification.");
+      return;
+    }
+
+    if (customer.phone.trim().replace(/\D/g, "").length < 10) {
+      setError("Enter a valid phone number.");
+      return;
+    }
+
+    if (!otp.trim()) {
+      setError("Enter the OTP to continue.");
+      return;
+    }
+
+    setVerifying(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/public/customers/verify-otp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name: customer.name,
+          phone: customer.phone,
+          otp: otp.trim()
+        })
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Unable to verify OTP.");
+      }
+
+      saveCustomerSession(result.data);
+      setCustomerSession(result.data);
+      setCustomer((current) => ({
+        ...current,
+        name: result.data.customer.name || current.name,
+        phone: result.data.customer.phone
+      }));
+      setOtp("");
+      navigateStep("payment");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  function resetVerifiedCustomer() {
+    clearCustomerSession();
+    setCustomerSession(null);
+    setOtp("");
+    setCustomer((current) => ({
+      ...current,
+      name: "",
+      phone: ""
+    }));
+    setError("");
+    navigateStep("verify");
+  }
+
   async function submitOrder(event) {
     event.preventDefault();
     setError("");
@@ -293,6 +425,12 @@ function CustomerShop() {
       return;
     }
 
+    if (!customerSession?.token) {
+      setError("Verify your phone number before placing the order.");
+      navigateStep("verify");
+      return;
+    }
+
     if (paymentConfigured && !paymentAcknowledged) {
       setError("Please complete payment and tick the payment confirmation before placing the order.");
       return;
@@ -304,11 +442,15 @@ function CustomerShop() {
       const response = await fetch(`${API_BASE_URL}/api/v1/public/shops/${slug}/orders`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${customerSession.token}`
         },
         body: JSON.stringify({
           customer: {
-            ...customer,
+            name: customer.name.trim() || customerSession.customer.name || "",
+            phone: customerSession.customer.phone,
+            address: customer.address,
+            note: customer.note,
             location
           },
           payment: {
@@ -330,6 +472,11 @@ function CustomerShop() {
       setCart({});
       setPaymentAcknowledged(false);
     } catch (err) {
+      if (String(err.message || "").toLowerCase().includes("verify your phone")) {
+        clearCustomerSession();
+        setCustomerSession(null);
+        navigateStep("verify");
+      }
       setError(err.message);
     } finally {
       setSubmitting(false);
@@ -624,29 +771,29 @@ function CustomerShop() {
             <button className="ghost-button" type="button" onClick={() => goToStep("menu")}>
               Add more items
             </button>
-            <button className="submit-button" type="button" onClick={continueToCheckout} disabled={!cartItems.length}>
-              Continue
+            <button className="submit-button" type="button" onClick={continueFromCart} disabled={!cartItems.length}>
+              {customerSession?.token ? "Continue to payment" : "Verify to continue"}
             </button>
           </div>
         </section>
       ) : null}
 
-      {activeStep === "checkout" ? (
-        <section className="customer-screen customer-checkout-screen">
+      {activeStep === "verify" ? (
+        <form id="customer-verify-form" className="customer-screen customer-checkout-screen" onSubmit={verifyCustomer}>
           <div className="customer-screen-head">
             <div>
-              <p className="eyebrow">Delivery details</p>
-              <h2>Where should we send it?</h2>
+              <p className="eyebrow">Phone verification</p>
+              <h2>Verify before payment</h2>
             </div>
           </div>
 
           <div className="checkout-fields customer-fields">
             <label>
-              Name
+              Name optional
               <input
                 value={customer.name}
                 onChange={(event) => setCustomer({ ...customer, name: event.target.value })}
-                placeholder="Your name"
+                placeholder="How should we address you?"
               />
             </label>
 
@@ -655,14 +802,81 @@ function CustomerShop() {
               <input
                 value={customer.phone}
                 onChange={(event) => setCustomer({ ...customer, phone: event.target.value })}
-                placeholder="Your phone"
+                placeholder="Your phone number"
                 inputMode="tel"
+                required
+              />
+            </label>
+
+            <label>
+              OTP
+              <input
+                value={otp}
+                onChange={(event) => setOtp(event.target.value)}
+                placeholder="Enter OTP"
+                inputMode="numeric"
+                required
               />
             </label>
 
             <label className="full-field">
+              <span>Verification</span>
+              <p className="location-note customer-location-note">
+                Use static OTP <strong>{STATIC_CUSTOMER_OTP}</strong> for this build. After verification your customer
+                session will be reused for faster repeat orders.
+              </p>
+            </label>
+          </div>
+
+          <section className="customer-total-card customer-mini-total">
+            <div className="total-strip">
+              <span>Final total</span>
+              <strong>Rs. {totalAmount}</strong>
+            </div>
+          </section>
+
+          <div className="customer-screen-actions">
+            <button className="ghost-button" type="button" onClick={() => goToStep("cart")}>
+              Back to cart
+            </button>
+            <button className="submit-button" type="submit" disabled={verifying}>
+              {verifying ? "Verifying..." : "Verify OTP"}
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      {activeStep === "payment" ? (
+        <form id="customer-payment-form" className="customer-screen customer-payment-screen" onSubmit={submitOrder}>
+          <div className="customer-screen-head">
+            <div>
+              <p className="eyebrow">Payment</p>
+              <h2>Pay and place order</h2>
+            </div>
+          </div>
+
+          <section className="customer-total-card customer-mini-total">
+            <div className="price-breakdown">
+              <div>
+                <span>Verified phone</span>
+                <strong>{customerSession?.customer?.phone || customer.phone || "-"}</strong>
+              </div>
+              <div>
+                <span>Customer</span>
+                <strong>{customer.name.trim() || customerSession?.customer?.name || "Guest customer"}</strong>
+              </div>
+            </div>
+            <div className="customer-screen-actions">
+              <button className="ghost-button" type="button" onClick={resetVerifiedCustomer}>
+                Use another number
+              </button>
+            </div>
+          </section>
+
+          <section className="checkout-fields customer-fields">
+            <label className="full-field">
               <span>
-                Address <strong className="required-mark">*</strong>
+                Delivery address <strong className="required-mark">*</strong>
               </span>
               <textarea
                 value={customer.address}
@@ -678,40 +892,13 @@ function CustomerShop() {
               <textarea
                 value={customer.note}
                 onChange={(event) => setCustomer({ ...customer, note: event.target.value })}
-                placeholder="Less spicy, pickup time, etc."
+                placeholder="Less spicy, pickup time, landmark, etc."
                 rows="3"
               />
             </label>
-          </div>
-
-          <p className="location-note customer-location-note">{locationStatus}</p>
-
-          <section className="customer-total-card customer-mini-total">
-            <div className="total-strip">
-              <span>Final total</span>
-              <strong>Rs. {totalAmount}</strong>
-            </div>
           </section>
 
-          <div className="customer-screen-actions">
-            <button className="ghost-button" type="button" onClick={() => goToStep("cart")}>
-              Back to cart
-            </button>
-            <button className="submit-button" type="button" onClick={continueToPayment}>
-              Continue to payment
-            </button>
-          </div>
-        </section>
-      ) : null}
-
-      {activeStep === "payment" ? (
-        <form id="customer-payment-form" className="customer-screen customer-payment-screen" onSubmit={submitOrder}>
-          <div className="customer-screen-head">
-            <div>
-              <p className="eyebrow">Payment</p>
-              <h2>Pay and place order</h2>
-            </div>
-          </div>
+          <p className="location-note customer-location-note">{locationStatus}</p>
 
           <section className="customer-total-card">
             <div className="price-breakdown">
@@ -764,8 +951,8 @@ function CustomerShop() {
           </section>
 
           <div className="customer-screen-actions">
-            <button className="ghost-button" type="button" onClick={() => goToStep("checkout")}>
-              Back to details
+            <button className="ghost-button" type="button" onClick={() => goToStep("verify")}>
+              Back to verification
             </button>
             <button className="submit-button" type="submit" disabled={submitting || !cartItems.length}>
               {submitting ? "Placing order..." : "Place order"}
@@ -808,13 +995,13 @@ function CustomerShop() {
           </button>
         ) : null}
         {activeStep === "cart" ? (
-          <button type="button" onClick={continueToCheckout} disabled={!cartItems.length}>
-            Details
+          <button type="button" onClick={continueFromCart} disabled={!cartItems.length}>
+            {customerSession?.token ? "Payment" : "Verify"}
           </button>
         ) : null}
-        {activeStep === "checkout" ? (
-          <button type="button" onClick={continueToPayment}>
-            Payment
+        {activeStep === "verify" ? (
+          <button type="submit" form="customer-verify-form" disabled={verifying}>
+            {verifying ? "Verifying..." : "Verify OTP"}
           </button>
         ) : null}
         {activeStep === "payment" ? (
