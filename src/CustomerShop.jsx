@@ -236,6 +236,14 @@ function humanizeStatus(status) {
     .join(" ");
 }
 
+function displayOrderStatus(status) {
+  if (!status || ["placed", "payment_claimed", "seen"].includes(status)) {
+    return "Pending";
+  }
+
+  return humanizeStatus(status);
+}
+
 function formatCurrency(value) {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -317,9 +325,9 @@ function orderStateCopy(order) {
     case "payment_claimed":
     default:
       return {
-        eyebrow: "Waiting for Shop Confirmation",
-        title: "Waiting for Shop Confirmation",
-        copy: "We are verifying your payment with the shop.",
+        eyebrow: "Pending",
+        title: "Order pending",
+        copy: "Your order is waiting for shop confirmation.",
         eta: "Usually confirmed in 2 to 5 minutes"
       };
   }
@@ -423,6 +431,17 @@ function mergeOrderUpdate(currentOrder, update) {
     totalAmount: update.totalAmount ?? currentOrder.totalAmount,
     pricing: update.pricing || currentOrder.pricing,
     payment: update.payment || currentOrder.payment,
+    items: update.items?.length
+      ? update.items.map((item) => {
+          const existingItem = currentOrder.items?.find((entry) => String(entry.productId) === String(item.productId));
+
+          return {
+            ...existingItem,
+            ...item,
+            imageUrl: item.imageUrl || existingItem?.imageUrl || ""
+          };
+        })
+      : currentOrder.items,
     updatedAt: update.updatedAt || currentOrder.updatedAt,
     createdAt: update.createdAt || currentOrder.createdAt,
     customerSnapshot: {
@@ -742,8 +761,8 @@ function CustomerShop() {
         const nextOrder = mergeOrderUpdate(currentShopOrder, result.data);
 
         if (result.data.status !== lastStatus) {
-          const title = `Order ${humanizeStatus(result.data.status)}`;
-          const message = `${nextOrder.orderNumber} status updated to ${humanizeStatus(result.data.status)}.`;
+          const title = `Order ${displayOrderStatus(result.data.status)}`;
+          const message = `${nextOrder.orderNumber} status updated to ${displayOrderStatus(result.data.status)}.`;
           appendNotification(title, message, {
             orderId: nextOrder.orderId,
             status: result.data.status,
@@ -791,8 +810,8 @@ function CustomerShop() {
         const nextOrder = mergeOrderUpdate(baseOrder, updatedOrder);
 
         if (updatedOrder.status && updatedOrder.status !== baseOrder.status) {
-          const title = `Order ${humanizeStatus(updatedOrder.status)}`;
-          const message = `${nextOrder.orderNumber} status updated to ${humanizeStatus(updatedOrder.status)}.`;
+          const title = `Order ${displayOrderStatus(updatedOrder.status)}`;
+          const message = `${nextOrder.orderNumber} status updated to ${displayOrderStatus(updatedOrder.status)}.`;
           appendNotification(title, message, {
             orderId: nextOrder.orderId,
             status: updatedOrder.status,
@@ -1420,7 +1439,7 @@ function CustomerShop() {
           {currentShopOrder ? (
             <button className="customer-summary-status" type="button" onClick={() => goToStep(resolveOrderRoute(currentShopOrder))}>
               <span>Active order</span>
-              <strong>{humanizeStatus(currentShopOrder.status)}</strong>
+              <strong>{displayOrderStatus(currentShopOrder.status)}</strong>
             </button>
           ) : (
             <p className="customer-summary-helper">Browse freely now. Verification appears only when you continue to payment.</p>
@@ -1598,7 +1617,7 @@ function CustomerShop() {
               </div>
               <div className="customer-section-actions">
                 {cartCount ? (
-                  <button className="customer-secondary-action" type="button" onClick={clearCart}>
+                  <button className="customer-secondary-action customer-cart-clear" type="button" onClick={clearCart}>
                     Clear cart
                   </button>
                 ) : null}
@@ -1651,7 +1670,7 @@ function CustomerShop() {
                   </div>
                 </div>
 
-                <div className="customer-page-actions">
+                <div className="customer-page-actions customer-cart-actions">
                   <button className="customer-secondary-action" type="button" onClick={() => goToStep("menu")}>
                     Add more items
                   </button>
@@ -1943,8 +1962,8 @@ function CustomerShop() {
           </section>
 
           <section className="customer-panel">
-            <p className="customer-overline">Payment verification</p>
-            <h3>We are verifying your payment with the shop.</h3>
+            <p className="customer-overline">Order status</p>
+            <h3>{displayOrderStatus(currentShopOrder.status)}</h3>
             <p>Keep this page open or enable notifications so the next state reaches you the moment the owner confirms.</p>
             <button className="customer-primary-action" type="button" onClick={enableOrderUpdates} disabled={enablingOrderUpdates}>
               {enablingOrderUpdates ? "Connecting..." : "Enable live updates"}
@@ -1982,7 +2001,7 @@ function CustomerShop() {
             <p>{orderStateCopy(currentShopOrder).copy}</p>
           </div>
           <div className="customer-section-stats">
-            <span>{humanizeStatus(currentShopOrder.status)}</span>
+            <span>{displayOrderStatus(currentShopOrder.status)}</span>
             <span>{formatCurrency(currentShopOrder.totalAmount)}</span>
           </div>
         </div>
@@ -2037,7 +2056,7 @@ function CustomerShop() {
           <aside className="customer-track-side">
             <section className="customer-panel customer-status-snapshot">
               <p className="customer-overline">Status snapshot</p>
-              <h3>{humanizeStatus(currentShopOrder.status)}</h3>
+              <h3>{displayOrderStatus(currentShopOrder.status)}</h3>
               <div className="customer-metric-list">
                 <div>
                   <span>Payment</span>
@@ -2081,7 +2100,7 @@ function CustomerShop() {
             <h3>{dashboardOrder ? dashboardOrder.orderNumber : "No active order"}</h3>
             <p>
               {dashboardOrder
-                ? `${dashboardOrder.shopName} | ${humanizeStatus(dashboardOrder.status)} | ${formatCurrency(dashboardOrder.totalAmount)}`
+                ? `${dashboardOrder.shopName} | ${displayOrderStatus(dashboardOrder.status)} | ${formatCurrency(dashboardOrder.totalAmount)}`
                 : "Start a fresh order from the menu and it will appear here instantly."}
             </p>
             {dashboardOrder ? (
@@ -2147,7 +2166,7 @@ function CustomerShop() {
                     <div>
                       <strong>{entry.orderNumber}</strong>
                       <span>
-                        {entry.shopName} | {humanizeStatus(entry.status)} | {formatCurrency(entry.totalAmount)}
+                        {entry.shopName} | {displayOrderStatus(entry.status)} | {formatCurrency(entry.totalAmount)}
                       </span>
                     </div>
                     <small>{formatDateTime(entry.createdAt)}</small>
@@ -2322,7 +2341,7 @@ function CustomerShop() {
                     <div>
                       <strong>{entry.orderNumber}</strong>
                       <span>
-                        {entry.shopName} | {humanizeStatus(entry.status)} | {formatCurrency(entry.totalAmount)}
+                        {entry.shopName} | {displayOrderStatus(entry.status)} | {formatCurrency(entry.totalAmount)}
                       </span>
                     </div>
                     <small>{timeAgo(entry.createdAt)}</small>
