@@ -3781,6 +3781,97 @@ body.customer-body #root {
   color: #4f3d31;
 }
 
+@media (max-width: 520px) {
+  .customer-route-waiting .customer-section {
+    padding-top: 14px;
+  }
+
+  .customer-route-waiting .customer-waiting-hero {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 14px 0 16px;
+  }
+
+  .customer-route-waiting .customer-waiting-copy h2 {
+    margin-bottom: 8px;
+    font-size: 1.55rem;
+    line-height: 1.05;
+  }
+
+  .customer-route-waiting .customer-waiting-copy p:not(.customer-overline) {
+    max-width: 34ch;
+    margin: 0;
+    color: #4f3d31;
+    line-height: 1.45;
+  }
+
+  .customer-route-waiting .customer-waiting-badge {
+    min-width: 0;
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(255, 138, 89, 0.1);
+  }
+
+  .customer-route-waiting .customer-waiting-badge span {
+    margin-bottom: 4px;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .customer-route-waiting .customer-waiting-badge strong {
+    display: block;
+    line-height: 1.35;
+  }
+
+  .customer-route-waiting .customer-waiting-grid {
+    gap: 0;
+  }
+
+  .customer-route-waiting .customer-panel {
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+
+  .customer-route-waiting .customer-panel h3 {
+    margin-bottom: 14px;
+    overflow-wrap: anywhere;
+    font-size: 1.2rem;
+    line-height: 1.18;
+  }
+
+  .customer-route-waiting .customer-metric-list {
+    gap: 0;
+  }
+
+  .customer-route-waiting .customer-metric-list div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 9px 0;
+    border-bottom: 1px solid rgba(126, 93, 61, 0.1);
+  }
+
+  .customer-route-waiting .customer-metric-list strong {
+    text-align: left;
+    line-height: 1.35;
+  }
+
+  .customer-route-waiting .customer-panel .customer-primary-action {
+    width: 100%;
+    height: 46px;
+    min-height: 46px;
+    margin-top: 10px;
+  }
+
+  .customer-route-waiting .customer-page-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
 .customer-status-snapshot {
   padding-bottom: 18px;
 }
@@ -3899,6 +3990,80 @@ body.customer-body #root {
 
 .customer-notification-section .customer-notification-row small {
   white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .customer-route-notifications .customer-section {
+    padding-top: 14px;
+  }
+
+  .customer-route-notifications .customer-section-head {
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .customer-route-notifications .customer-section-head h2 {
+    font-size: 1.45rem;
+    line-height: 1.08;
+    margin-bottom: 8px;
+  }
+
+  .customer-route-notifications .customer-section-head p {
+    max-width: 32ch;
+    color: #4f3d31;
+    line-height: 1.45;
+  }
+
+  .customer-route-notifications .customer-section-actions {
+    flex: 0 0 auto;
+  }
+
+  .customer-route-notifications .customer-section-actions .customer-secondary-action {
+    width: auto;
+    height: 42px;
+    min-height: 42px;
+    padding: 0 12px;
+    border-radius: 13px;
+    line-height: 1.05;
+    white-space: normal;
+  }
+
+  .customer-route-notifications .customer-notification-band {
+    gap: 0;
+    margin-bottom: 10px;
+  }
+
+  .customer-route-notifications .customer-notification-band div {
+    grid-template-columns: 1fr auto;
+    padding: 12px 0;
+    border-radius: 0;
+    border: 0;
+    border-bottom: 1px solid rgba(126, 93, 61, 0.12);
+    background: transparent;
+  }
+
+  .customer-route-notifications .customer-notification-band span {
+    line-height: 1.2;
+  }
+
+  .customer-route-notifications .customer-notification-band strong {
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+
+  .customer-route-notifications .customer-notification-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    min-height: 0;
+    padding: 12px 0;
+    border-radius: 0;
+  }
+
+  .customer-route-notifications .customer-notification-row small {
+    white-space: normal;
+    justify-self: start;
+  }
 }
 
 .customer-payment-page {
