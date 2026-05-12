@@ -2414,13 +2414,18 @@ body.customer-body #root {
 }
 
 .customer-route-cart .customer-cart-actions {
+  display: grid;
   gap: 10px;
 }
 
 .customer-route-cart .customer-cart-actions .customer-primary-action,
 .customer-route-cart .customer-cart-actions .customer-secondary-action,
 .customer-route-cart .customer-empty .customer-primary-action {
+  width: 100%;
+  flex: 0 0 auto;
   min-height: 48px;
+  height: 48px;
+  padding: 0 16px;
   border-radius: 14px;
 }
 
@@ -2438,6 +2443,32 @@ body.customer-body #root {
 }
 
 @media (max-width: 520px) {
+  .customer-route-cart .customer-section {
+    padding-top: 14px;
+  }
+
+  .customer-route-cart .customer-section-head {
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .customer-route-cart .customer-section-head h2 {
+    font-size: 1.45rem;
+    line-height: 1.05;
+  }
+
+  .customer-route-cart .customer-section-actions {
+    flex: 0 0 auto;
+  }
+
+  .customer-route-cart .customer-cart-clear {
+    min-height: 38px;
+    height: 38px;
+    padding: 0 12px;
+    line-height: 1.1;
+  }
+
   .customer-route-cart .customer-cart-row {
     grid-template-columns: 64px minmax(0, 1fr);
     gap: 12px;
@@ -2457,6 +2488,13 @@ body.customer-body #root {
   .customer-route-cart .customer-qty {
     width: 100%;
     max-width: 132px;
+  }
+
+  .customer-route-cart .customer-cart-actions .customer-primary-action,
+  .customer-route-cart .customer-cart-actions .customer-secondary-action,
+  .customer-route-cart .customer-empty .customer-primary-action {
+    min-height: 46px;
+    height: 46px;
   }
 }
 
@@ -2483,17 +2521,25 @@ body.customer-body #root {
 }
 
 .customer-profile-gate-simple .customer-page-actions {
-  width: 100%;
-  justify-content: center;
+  width: min(100%, 520px);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  justify-content: stretch;
 }
 
 .customer-profile-gate-simple .customer-page-actions > * {
-  flex: 0 1 240px;
+  width: 100%;
+  flex: 0 0 auto;
 }
 
 .customer-route-profile .customer-profile-gate-simple .customer-primary-action,
 .customer-route-profile .customer-profile-gate-simple .customer-secondary-action {
+  width: 100%;
+  flex: 0 0 auto;
   min-height: 48px;
+  height: 48px;
+  padding: 0 16px;
   border-radius: 14px;
   font-weight: 900;
 }
@@ -2509,6 +2555,18 @@ body.customer-body #root {
   color: #2a1d14;
   background: #fffaf5;
   border: 1px solid rgba(126, 93, 61, 0.16);
+}
+
+@media (max-width: 520px) {
+  .customer-profile-gate-simple .customer-page-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .customer-route-profile .customer-profile-gate-simple .customer-primary-action,
+  .customer-route-profile .customer-profile-gate-simple .customer-secondary-action {
+    height: 46px;
+    min-height: 46px;
+  }
 }
 
 .customer-profile-gate-icon {

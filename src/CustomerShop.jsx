@@ -1613,7 +1613,6 @@ function CustomerShop() {
               <div>
                 <p className="customer-overline">Cart</p>
                 <h2>Review your order before checkout</h2>
-                <p>Keep editing quantities or jump straight to OTP verification when everything looks right.</p>
               </div>
               <div className="customer-section-actions">
                 {cartCount ? (
