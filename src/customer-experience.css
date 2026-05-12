@@ -880,7 +880,10 @@ body.customer-body {
 }
 
 .customer-page-actions > * {
-  flex: 1 1 220px;
+  flex: 1 1 180px;
+  min-width: min(100%, 180px);
+  max-height: 54px;
+  white-space: nowrap;
 }
 
 .customer-page-actions-stack {
@@ -1355,6 +1358,8 @@ body.customer-body {
   .customer-page-actions > *,
   .customer-install-actions > * {
     width: 100%;
+    flex-basis: auto;
+    max-height: 54px;
   }
 
   .customer-flowbar {
