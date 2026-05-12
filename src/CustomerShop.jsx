@@ -805,6 +805,18 @@ function CustomerShop() {
       });
     });
 
+    socket.on("order:message", (payload) => {
+      if (String(payload?.orderId || "") !== String(currentShopOrder.orderId)) {
+        return;
+      }
+
+      appendNotification("Message from shop", payload.message || "The shop sent an order update.", {
+        orderId: currentShopOrder.orderId,
+        status: payload.status || currentShopOrder.status,
+        step: "notifications"
+      });
+    });
+
     return () => socket.disconnect();
   }, [currentShopOrder?.orderId]);
 
@@ -1318,6 +1330,23 @@ function CustomerShop() {
               />
             </svg>
             {cartCount ? <strong>{cartCount}</strong> : null}
+          </button>
+          <button
+            type="button"
+            className={`customer-ghost-chip customer-icon-chip ${activeStep === "notifications" ? "is-active" : ""}`}
+            onClick={() => goToStep("notifications")}
+            aria-label={`Notifications${unreadCount ? ` ${unreadCount} unread` : ""}`}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M18 9.8c0-3.3-2.1-5.8-6-5.8s-6 2.5-6 5.8v2.9c0 .8-.3 1.5-.9 2.1L4 15.9h16l-1.1-1.1c-.6-.6-.9-1.3-.9-2.1V9.8ZM9.7 19a2.4 2.4 0 0 0 4.6 0"
+                stroke="currentColor"
+                strokeWidth="1.9"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            {unreadCount ? <strong>{unreadCount}</strong> : null}
           </button>
           <button
             type="button"
@@ -1988,8 +2017,15 @@ function CustomerShop() {
               <div className="customer-order-lines">
                 {currentShopOrder.items?.map((item) => (
                   <div className="customer-order-line" key={`${currentShopOrder.orderId}-${item.productId}`}>
-                    <span>
-                      {item.quantity} x {item.name}
+                    <SafeImage
+                      className="customer-order-image"
+                      src={assetUrl(item.imageUrl)}
+                      alt=""
+                      fallback={<span className="customer-order-image customer-order-image-fallback">{(item.name || "?").charAt(0).toUpperCase()}</span>}
+                    />
+                    <span className="customer-order-item-copy">
+                      <strong>{item.name}</strong>
+                      <small>{item.quantity} x {formatCurrency(item.price)}</small>
                     </span>
                     <strong>{formatCurrency(item.price * item.quantity)}</strong>
                   </div>
@@ -1999,7 +2035,7 @@ function CustomerShop() {
           </div>
 
           <aside className="customer-track-side">
-            <section className="customer-panel">
+            <section className="customer-panel customer-status-snapshot">
               <p className="customer-overline">Status snapshot</p>
               <h3>{humanizeStatus(currentShopOrder.status)}</h3>
               <div className="customer-metric-list">
@@ -2014,19 +2050,6 @@ function CustomerShop() {
               </div>
             </section>
 
-            <section className="customer-panel">
-              <p className="customer-overline">Quick actions</p>
-              <h3>Keep things moving</h3>
-              <div className="customer-page-actions customer-page-actions-stack">
-                <button className="customer-primary-action" type="button" onClick={enableOrderUpdates} disabled={enablingOrderUpdates}>
-                  {enablingOrderUpdates ? "Connecting..." : "Enable live updates"}
-                </button>
-                <button className="customer-secondary-action" type="button" onClick={() => goToStep("dashboard")}>
-                  Open dashboard
-                </button>
-              </div>
-              {customerNotificationStatus ? <small>{customerNotificationStatus}</small> : null}
-            </section>
           </aside>
         </div>
       </section>
@@ -2175,7 +2198,6 @@ function CustomerShop() {
           <div>
             <p className="customer-overline">Profile</p>
             <h2>{customerSession?.customer?.name ? `${customerSession.customer.name}'s profile` : "Customer profile"}</h2>
-            <p>Keep your details, saved addresses, favorite shops, and repeat-order shortcuts all in one clean space.</p>
           </div>
           {customerSession?.token ? (
             <button className="customer-secondary-action" type="button" onClick={logoutCustomer}>
@@ -2221,9 +2243,6 @@ function CustomerShop() {
                 Browse menu
               </button>
             )}
-            <button className="customer-secondary-action" type="button" onClick={() => goToStep("dashboard")}>
-              Dashboard
-            </button>
           </div>
         </section>
 
@@ -2249,7 +2268,7 @@ function CustomerShop() {
 
           <section className="customer-panel">
             <p className="customer-overline">Saved addresses</p>
-            <h3>Fast checkout helpers</h3>
+            <h3>Saved addresses</h3>
             <div className="customer-data-list">
               {savedAddresses.length ? (
                 savedAddresses.map((entry) => (
@@ -2272,7 +2291,7 @@ function CustomerShop() {
 
           <section className="customer-panel">
             <p className="customer-overline">Saved shops</p>
-            <h3>Quick return list</h3>
+            <h3>Saved shops</h3>
             <div className="customer-data-list">
               {savedShops.length ? (
                 savedShops.slice(0, 4).map((entry) => (
@@ -2295,7 +2314,7 @@ function CustomerShop() {
 
           <section className="customer-panel customer-panel-wide">
             <p className="customer-overline">Recent orders</p>
-            <h3>Open an old order anytime</h3>
+            <h3>Recent orders</h3>
             <div className="customer-data-list">
               {orderHistory.length ? (
                 orderHistory.map((entry) => (
