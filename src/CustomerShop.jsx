@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { io } from "socket.io-client";
 import "./customer-experience.css";
 import { API_BASE_URL, assetUrl } from "./api.js";
 import { createCustomerNotificationToken } from "./notifications.js";
@@ -409,6 +410,34 @@ function buildOrderRecord(orderData, shop, cartItems, customer, customerSession,
   };
 }
 
+function mergeOrderUpdate(currentOrder, update) {
+  if (!currentOrder || !update) {
+    return currentOrder;
+  }
+
+  return {
+    ...currentOrder,
+    orderId: update.orderId || update._id || currentOrder.orderId,
+    orderNumber: update.orderNumber || currentOrder.orderNumber,
+    status: update.status || currentOrder.status,
+    totalAmount: update.totalAmount ?? currentOrder.totalAmount,
+    pricing: update.pricing || currentOrder.pricing,
+    payment: update.payment || currentOrder.payment,
+    updatedAt: update.updatedAt || currentOrder.updatedAt,
+    createdAt: update.createdAt || currentOrder.createdAt,
+    customerSnapshot: {
+      ...currentOrder.customerSnapshot,
+      ...(update.customerSnapshot || {}),
+      ...(update.customer
+        ? {
+            address: update.customer.address || currentOrder.customerSnapshot?.address || "",
+            note: update.customer.note || currentOrder.customerSnapshot?.note || ""
+          }
+        : {})
+    }
+  };
+}
+
 function upsertById(list, item, idField) {
   return [item, ...list.filter((entry) => entry[idField] !== item[idField])];
 }
@@ -694,6 +723,92 @@ function CustomerShop() {
   }, [activeStep, currentShopOrder]);
 
   useEffect(() => {
+    if (!currentShopOrder?.orderId) {
+      return;
+    }
+
+    let cancelled = false;
+    let lastStatus = currentShopOrder.status;
+
+    async function refreshOrderStatus() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/v1/public/orders/${currentShopOrder.orderId}/status`);
+        const result = await response.json();
+
+        if (!response.ok || !result.data || cancelled) {
+          return;
+        }
+
+        const nextOrder = mergeOrderUpdate(currentShopOrder, result.data);
+
+        if (result.data.status !== lastStatus) {
+          const title = `Order ${humanizeStatus(result.data.status)}`;
+          const message = `${nextOrder.orderNumber} status updated to ${humanizeStatus(result.data.status)}.`;
+          appendNotification(title, message, {
+            orderId: nextOrder.orderId,
+            status: result.data.status,
+            step: resolveOrderRoute(nextOrder)
+          });
+          lastStatus = result.data.status;
+        }
+
+        setActiveOrder(nextOrder);
+        setOrderHistory((current) => upsertById(current, nextOrder, "orderId").slice(0, 12));
+      } catch (_error) {
+        // Polling is best-effort; the next interval will try again.
+      }
+    }
+
+    refreshOrderStatus();
+    const interval = window.setInterval(refreshOrderStatus, 7000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [currentShopOrder?.orderId]);
+
+  useEffect(() => {
+    if (!currentShopOrder?.orderId) {
+      return;
+    }
+
+    const socket = io(API_BASE_URL, {
+      auth: {
+        orderId: currentShopOrder.orderId
+      },
+      transports: ["polling", "websocket"]
+    });
+
+    socket.on("order:updated", (updatedOrder) => {
+      setActiveOrder((current) => {
+        const baseOrder = current || currentShopOrder;
+
+        if (!baseOrder || String(updatedOrder?._id || updatedOrder?.orderId || "") !== String(baseOrder.orderId)) {
+          return current;
+        }
+
+        const nextOrder = mergeOrderUpdate(baseOrder, updatedOrder);
+
+        if (updatedOrder.status && updatedOrder.status !== baseOrder.status) {
+          const title = `Order ${humanizeStatus(updatedOrder.status)}`;
+          const message = `${nextOrder.orderNumber} status updated to ${humanizeStatus(updatedOrder.status)}.`;
+          appendNotification(title, message, {
+            orderId: nextOrder.orderId,
+            status: updatedOrder.status,
+            step: resolveOrderRoute(nextOrder)
+          });
+        }
+
+        setOrderHistory((history) => upsertById(history, nextOrder, "orderId").slice(0, 12));
+        return nextOrder;
+      });
+    });
+
+    return () => socket.disconnect();
+  }, [currentShopOrder?.orderId]);
+
+  useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
@@ -856,7 +971,6 @@ function CustomerShop() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          name: customer.name,
           phone: customer.phone,
           otp: otp.trim()
         })
@@ -1545,15 +1659,6 @@ function CustomerShop() {
 
           <form className="customer-form-panel customer-verify-form" id="customer-verify-form" onSubmit={verifyCustomer}>
             <label className="customer-field">
-              <span>Name</span>
-              <input
-                value={customer.name}
-                onChange={(event) => setCustomer({ ...customer, name: event.target.value })}
-                placeholder="Enter your name"
-              />
-            </label>
-
-            <label className="customer-field">
               <span>Phone number</span>
               <input
                 value={customer.phone}
@@ -1590,24 +1695,39 @@ function CustomerShop() {
 
   function renderPaymentPage() {
     return (
-      <section className="customer-split-section">
+      <section className="customer-split-section customer-payment-page">
         <div className="customer-split-main">
           <section className="customer-section">
             <div className="customer-section-head">
               <div>
                 <p className="customer-overline">Payment</p>
-                <h2>Pay through UPI and place the order</h2>
-                <p>Verification is complete. Add your address, pay the shop, and we will send the order for confirmation.</p>
+                <h2>Confirm details and pay</h2>
+                <p>Add your address, complete UPI payment, then place the order for shop confirmation.</p>
               </div>
               <button className="customer-secondary-action" type="button" onClick={resetVerifiedCustomer}>
                 Use another number
               </button>
             </div>
 
+            <div className="customer-checkout-steps" aria-label="Checkout steps">
+              <div className="is-complete">
+                <span>1</span>
+                <strong>Verified</strong>
+              </div>
+              <div>
+                <span>2</span>
+                <strong>Pay UPI</strong>
+              </div>
+              <div>
+                <span>3</span>
+                <strong>Place order</strong>
+              </div>
+            </div>
+
             <form className="customer-payment-shell" id="customer-payment-form" onSubmit={submitOrder}>
               <div className="customer-identity-strip">
                 <div>
-                  <span>Verified customer</span>
+                  <span>Customer</span>
                   <strong>{customer.name.trim() || customerSession?.customer?.name || "qrMart customer"}</strong>
                 </div>
                 <div>
@@ -1622,8 +1742,8 @@ function CustomerShop() {
                   <textarea
                     value={customer.address}
                     onChange={(event) => setCustomer({ ...customer, address: event.target.value })}
-                    placeholder="House, street, landmark, or pickup note"
-                    rows="4"
+                    placeholder="House, street, landmark, or pickup counter note"
+                    rows="3"
                     required
                   />
                 </label>
@@ -1634,7 +1754,7 @@ function CustomerShop() {
                     value={customer.note}
                     onChange={(event) => setCustomer({ ...customer, note: event.target.value })}
                     placeholder="Less spicy, pickup timing, landmark, or extra notes"
-                    rows="3"
+                    rows="2"
                   />
                 </label>
               </div>
@@ -1664,9 +1784,14 @@ function CustomerShop() {
         </div>
 
         <aside className="customer-split-side">
-          <section className="customer-panel">
-            <p className="customer-overline">Final total</p>
-            <h3>{formatCurrency(totalAmount)}</h3>
+          <section className="customer-panel customer-payment-total-card">
+            <div className="customer-payment-total-head">
+              <div>
+                <p className="customer-overline">Final total</p>
+                <h3>{formatCurrency(totalAmount)}</h3>
+              </div>
+              <span>{cartCount} item{cartCount === 1 ? "" : "s"}</span>
+            </div>
             <div className="customer-metric-list">
               <div>
                 <span>Item total</span>
@@ -1679,14 +1804,16 @@ function CustomerShop() {
             </div>
           </section>
 
-          <section className="customer-panel">
+          <section className="customer-panel customer-payment-card">
             <p className="customer-overline">UPI payment</p>
-            <h3>Complete payment before placing the order</h3>
+            <h3>Pay before placing order</h3>
 
             {paymentConfigured ? (
               <>
                 {shop.payment?.qrCodeUrl ? (
-                  <SafeImage className="customer-payment-qr" src={assetUrl(shop.payment.qrCodeUrl)} alt="Payment QR code" />
+                  <div className="customer-payment-qr-frame">
+                    <SafeImage className="customer-payment-qr" src={assetUrl(shop.payment.qrCodeUrl)} alt="Payment QR code" />
+                  </div>
                 ) : null}
 
                 {shop.payment?.upiId ? (
@@ -1700,7 +1827,7 @@ function CustomerShop() {
 
                 {upiLink ? (
                   <a className="customer-pay-link" href={upiLink}>
-                    Open UPI app
+                    Open UPI app and pay
                   </a>
                 ) : null}
 
@@ -1709,7 +1836,7 @@ function CustomerShop() {
                   type="button"
                   onClick={() => setPaymentAcknowledged((current) => !current)}
                 >
-                  {paymentAcknowledged ? "Payment marked as done" : "I Have Paid"}
+                  {paymentAcknowledged ? "Payment done" : "Mark as paid"}
                 </button>
               </>
             ) : (

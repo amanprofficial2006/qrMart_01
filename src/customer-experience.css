@@ -2931,6 +2931,7 @@ body.customer-body #root {
   color: #9a8370;
 }
 
+.customer-verify-form .customer-field,
 .customer-verify-form .customer-otp-field,
 .customer-verify-form .customer-otp-hint,
 .customer-verify-form .customer-page-actions {
@@ -3514,4 +3515,405 @@ body.customer-body #root {
   color: #7a6251;
   font-size: 0.92rem;
   font-weight: 700;
+}
+
+.customer-profile-section .customer-metric-list span,
+.customer-profile-section .customer-data-row span,
+.customer-profile-section .customer-data-row small,
+.customer-profile-section .customer-empty p {
+  color: #6e5a4b;
+}
+
+.customer-profile-section .customer-metric-list strong,
+.customer-profile-section .customer-data-row strong,
+.customer-profile-section .customer-empty strong {
+  color: #23170f;
+}
+
+.customer-profile-section .customer-data-row {
+  min-height: 50px;
+  align-items: start;
+}
+
+.customer-profile-section .customer-data-row div {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 4px;
+  align-items: baseline;
+}
+
+.customer-profile-section .customer-data-row span {
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.customer-profile-section .customer-data-row small {
+  white-space: nowrap;
+}
+
+.customer-route-waiting .customer-waiting-badge span,
+.customer-route-waiting .customer-metric-list span,
+.customer-route-track .customer-metric-list span,
+.customer-route-track .customer-order-line span,
+.customer-route-track .customer-section-stats span {
+  color: #6e5a4b;
+}
+
+.customer-route-waiting .customer-waiting-badge strong,
+.customer-route-waiting .customer-metric-list strong,
+.customer-route-track .customer-metric-list strong,
+.customer-route-track .customer-order-line strong,
+.customer-route-track .customer-timeline-step strong {
+  color: #23170f;
+}
+
+.customer-route-waiting .customer-metric-list strong,
+.customer-route-track .customer-metric-list strong {
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.customer-route-waiting .customer-panel p,
+.customer-route-track .customer-panel p,
+.customer-route-track .customer-timeline-step p {
+  color: #4f3d31;
+}
+
+.customer-notification-section .customer-notification-band span,
+.customer-notification-section .customer-notification-row p,
+.customer-notification-section .customer-notification-row small,
+.customer-notification-section .customer-empty p {
+  color: #6e5a4b;
+}
+
+.customer-notification-section .customer-notification-band strong,
+.customer-notification-section .customer-notification-row strong,
+.customer-notification-section .customer-empty strong {
+  color: #23170f;
+}
+
+.customer-notification-section .customer-notification-band div,
+.customer-notification-section .customer-notification-row {
+  border-color: rgba(126, 93, 61, 0.14);
+}
+
+.customer-notification-section .customer-notification-row {
+  min-height: 76px;
+  align-items: start;
+}
+
+.customer-notification-section .customer-notification-row p {
+  margin-bottom: 0;
+}
+
+.customer-notification-section .customer-notification-row small {
+  white-space: nowrap;
+}
+
+.customer-payment-page {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: 0;
+  background: #fffaf5;
+}
+
+.customer-payment-page .customer-section,
+.customer-payment-page .customer-panel {
+  border-bottom: 1px solid rgba(126, 93, 61, 0.12);
+}
+
+.customer-payment-page .customer-section {
+  min-height: calc(100vh - 132px);
+  padding-top: clamp(18px, 2.4vw, 32px);
+}
+
+.customer-payment-page .customer-section-head {
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.customer-payment-page .customer-section-head h2 {
+  max-width: 16ch;
+  margin-bottom: 6px;
+  font-size: clamp(1.65rem, 2.6vw, 2.35rem);
+}
+
+.customer-payment-page .customer-section-head p:not(.customer-overline) {
+  max-width: 48ch;
+  margin-bottom: 0;
+}
+
+.customer-checkout-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 18px;
+}
+
+.customer-checkout-steps div {
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid rgba(126, 93, 61, 0.12);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.customer-checkout-steps span {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #fff0e8;
+  color: #c76536;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.customer-checkout-steps strong {
+  color: #241a12;
+  font-size: 0.92rem;
+}
+
+.customer-checkout-steps .is-complete span {
+  background: #1c9d61;
+  color: #fff;
+}
+
+.customer-payment-page .customer-payment-shell {
+  padding: 18px;
+  border: 1px solid rgba(126, 93, 61, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 18px 40px rgba(126, 93, 61, 0.08);
+}
+
+.customer-payment-page .customer-identity-strip {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.customer-payment-page .customer-identity-strip div,
+.customer-payment-page .customer-metric-list div {
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(126, 93, 61, 0.1);
+}
+
+.customer-payment-page .customer-identity-strip span,
+.customer-payment-page .customer-metric-list span {
+  color: #7a6251;
+}
+
+.customer-payment-page .customer-identity-strip strong,
+.customer-payment-page .customer-metric-list strong,
+.customer-payment-page .customer-shell strong {
+  color: #241a12;
+}
+
+.customer-payment-page .customer-field {
+  color: #4e3a2d;
+}
+
+.customer-payment-page .customer-field input,
+.customer-payment-page .customer-field textarea {
+  min-height: 52px;
+  border-color: rgba(126, 93, 61, 0.16);
+  border-radius: 14px;
+  background: #fffdfa;
+  color: #241a12;
+  resize: vertical;
+}
+
+.customer-payment-page .customer-field textarea {
+  line-height: 1.45;
+}
+
+.customer-payment-page .customer-helper {
+  margin-top: 14px;
+  color: #7a6251;
+  font-size: 0.92rem;
+}
+
+.customer-payment-page .customer-inline-panel {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid rgba(126, 93, 61, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.customer-payment-page .customer-data-chip {
+  border-color: rgba(126, 93, 61, 0.14);
+  border-radius: 14px;
+  background: #fffdfa;
+}
+
+.customer-payment-page .customer-split-side {
+  gap: 0;
+  position: sticky;
+  top: 0;
+  align-self: start;
+  min-height: 100vh;
+  border-left: 1px solid rgba(126, 93, 61, 0.12);
+  background: linear-gradient(180deg, #fffdf9 0%, #f9efe6 100%);
+}
+
+.customer-payment-page .customer-panel {
+  padding: 20px 28px;
+  background: transparent;
+}
+
+.customer-payment-total-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.customer-payment-total-head h3 {
+  margin-bottom: 0;
+  font-size: 1.6rem;
+}
+
+.customer-payment-total-head > span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #fff0e8;
+  color: #a64c27;
+  font-size: 0.78rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.customer-payment-card h3 {
+  margin-bottom: 16px;
+  font-size: 1.5rem;
+}
+
+.customer-payment-qr-frame {
+  width: 250px;
+  max-width: 100%;
+  height: 250px;
+  max-height: 250px;
+  margin: 0 auto 14px;
+  padding: 12px;
+  border: 1px solid rgba(126, 93, 61, 0.12);
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 16px 32px rgba(126, 93, 61, 0.1);
+}
+
+.customer-payment-card .customer-payment-qr {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  margin: 0;
+  padding: 0;
+  display: block;
+  border-radius: 12px;
+  object-fit: contain;
+  background: #fff;
+  box-shadow: none;
+}
+
+.customer-payment-page .customer-upi-row {
+  border: 1px solid rgba(126, 93, 61, 0.14);
+  border-radius: 14px;
+  background: #fffdfa;
+}
+
+.customer-payment-page .customer-upi-row span {
+  color: #241a12;
+}
+
+.customer-payment-page .customer-upi-row button {
+  background: #fff0e8;
+  color: #9d4523;
+}
+
+.customer-payment-page .customer-pay-link,
+.customer-payment-page .customer-payment-flag {
+  width: 100%;
+  margin-top: 12px;
+  border-radius: 14px;
+}
+
+.customer-payment-page .customer-payment-flag {
+  border-color: rgba(126, 93, 61, 0.14);
+  background: #fffdfa;
+  color: #241a12;
+}
+
+.customer-payment-page .customer-payment-flag.is-active {
+  border-color: rgba(28, 157, 97, 0.28);
+  background: #e9f8ef;
+  color: #11693e;
+}
+
+.customer-payment-page .customer-page-actions-stack {
+  padding: 18px 28px 22px;
+  gap: 10px;
+}
+
+.customer-payment-page .customer-page-actions-stack > * {
+  width: 100%;
+  min-height: 50px;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 880px) {
+  .customer-payment-page {
+    grid-template-columns: 1fr;
+  }
+
+  .customer-payment-page .customer-section {
+    min-height: auto;
+  }
+
+  .customer-payment-page .customer-section-head {
+    align-items: flex-start;
+  }
+
+  .customer-payment-page .customer-split-side {
+    position: static;
+    min-height: auto;
+    border-left: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .customer-payment-page .customer-section-head {
+    display: grid;
+  }
+
+  .customer-checkout-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .customer-checkout-steps div {
+    min-height: 48px;
+  }
+
+  .customer-payment-page .customer-identity-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .customer-payment-page .customer-payment-shell,
+  .customer-payment-page .customer-inline-panel {
+    padding: 14px;
+  }
+
+  .customer-payment-page .customer-panel,
+  .customer-payment-page .customer-page-actions-stack {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
 }
