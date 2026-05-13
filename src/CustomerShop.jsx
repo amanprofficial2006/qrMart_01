@@ -570,6 +570,7 @@ function CustomerShop() {
   const [profileLoginIntent, setProfileLoginIntent] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [profileView, setProfileView] = useState("overview");
 
   const cartItems = products
     .map((product) => ({
@@ -1468,6 +1469,7 @@ function CustomerShop() {
       slug,
       step: "profile"
     });
+    setProfileView("overview");
     navigateStep("profile");
   }
 
@@ -2437,8 +2439,203 @@ function CustomerShop() {
       );
     }
 
+    const profileName = customerSession?.customer?.name || "Customer";
+    const profileBackButton =
+      profileView === "overview" ? null : (
+        <button className="customer-secondary-action" type="button" onClick={() => setProfileView("overview")}>
+          Back
+        </button>
+      );
+
+    if (profileView === "details") {
+      return (
+        <section className="customer-section customer-profile-section">
+          <div className="customer-section-head">
+            <div>
+              <p className="customer-overline">Profile</p>
+              <h2>Profile details</h2>
+            </div>
+            <div className="customer-section-actions">
+              {profileBackButton}
+              <button className="customer-secondary-action" type="button" onClick={logoutCustomer}>
+                Logout
+              </button>
+            </div>
+          </div>
+          <section className="customer-panel customer-panel-wide">
+            <form className="customer-profile-form" onSubmit={saveCustomerProfile}>
+              <div className="customer-profile-image-row">
+                <button
+                  className="customer-profile-avatar customer-profile-avatar-small"
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  aria-label="Change profile image"
+                >
+                  <SafeImage
+                    src={assetUrl(customerSession?.customer?.avatarUrl)}
+                    alt=""
+                    fallback={<span>{profileName.charAt(0).toUpperCase()}</span>}
+                  />
+                </button>
+                <div>
+                  <strong>Profile image</strong>
+                  <span>{profileAvatarSaving ? "Uploading..." : "Tap image to update"}</span>
+                </div>
+              </div>
+              <label className="customer-field">
+                <span>Name</span>
+                <input
+                  value={profileForm.name}
+                  onChange={(event) => setProfileForm({ ...profileForm, name: event.target.value })}
+                  placeholder="Your name"
+                  required
+                />
+              </label>
+              <button className="customer-primary-action" type="submit" disabled={profileSaving}>
+                {profileSaving ? "Saving..." : "Save profile"}
+              </button>
+            </form>
+          </section>
+        </section>
+      );
+    }
+
+    if (profileView === "addresses") {
+      return (
+        <section className="customer-section customer-profile-section">
+          <div className="customer-section-head">
+            <div>
+              <p className="customer-overline">Order addresses</p>
+              <h2>Manage addresses</h2>
+            </div>
+            <div className="customer-section-actions">{profileBackButton}</div>
+          </div>
+          <div className="customer-profile-grid">
+            <section className="customer-panel customer-panel-wide">
+              <form className="customer-address-form" onSubmit={addSavedAddress}>
+                <label className="customer-field">
+                  <span>Label</span>
+                  <input
+                    value={addressForm.title}
+                    onChange={(event) => setAddressForm({ ...addressForm, title: event.target.value })}
+                    placeholder="Home, Work, Shop pickup"
+                  />
+                </label>
+                <label className="customer-field customer-field-wide">
+                  <span>Address</span>
+                  <textarea
+                    value={addressForm.address}
+                    onChange={(event) => setAddressForm({ ...addressForm, address: event.target.value })}
+                    placeholder="House, street, landmark, or pickup counter note"
+                    rows="3"
+                    required
+                  />
+                </label>
+                <button className="customer-primary-action" type="submit">
+                  Add address
+                </button>
+              </form>
+            </section>
+            <section className="customer-panel customer-panel-wide">
+              <div className="customer-data-list">
+                {savedAddresses.length ? (
+                  savedAddresses.map((entry) => (
+                    <div className="customer-data-row customer-address-row" key={entry.id}>
+                      <div>
+                        <strong>{entry.title}</strong>
+                        <span>{entry.address}</span>
+                      </div>
+                      <span className="customer-address-actions">
+                        <button type="button" onClick={() => useSavedAddress(entry)}>Use</button>
+                        <button type="button" onClick={() => removeSavedAddress(entry)}>Delete</button>
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="customer-empty customer-empty-inline">
+                    <strong>No saved addresses yet</strong>
+                    <p>Add multiple addresses here and choose one during checkout.</p>
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
+        </section>
+      );
+    }
+
+    if (profileView === "shops") {
+      return (
+        <section className="customer-section customer-profile-section">
+          <div className="customer-section-head">
+            <div>
+              <p className="customer-overline">Saved shops</p>
+              <h2>Saved shops</h2>
+            </div>
+            <div className="customer-section-actions">{profileBackButton}</div>
+          </div>
+          <section className="customer-panel customer-panel-wide">
+            <div className="customer-data-list">
+              {savedShops.length ? (
+                savedShops.map((entry) => (
+                  <button className="customer-data-row" type="button" key={entry.slug} onClick={() => openSavedShop(entry)}>
+                    <div>
+                      <strong>{entry.name}</strong>
+                      <span>{entry.address || "Saved for repeat ordering"}</span>
+                    </div>
+                    <small>Open</small>
+                  </button>
+                ))
+              ) : (
+                <div className="customer-empty customer-empty-inline">
+                  <strong>No saved shops yet</strong>
+                  <p>Tap Save shop on any store to keep it here.</p>
+                </div>
+              )}
+            </div>
+          </section>
+        </section>
+      );
+    }
+
+    if (profileView === "orders") {
+      return (
+        <section className="customer-section customer-profile-section">
+          <div className="customer-section-head">
+            <div>
+              <p className="customer-overline">Recent orders</p>
+              <h2>Recent orders</h2>
+            </div>
+            <div className="customer-section-actions">{profileBackButton}</div>
+          </div>
+          <section className="customer-panel customer-panel-wide">
+            <div className="customer-data-list">
+              {orderHistory.length ? (
+                orderHistory.map((entry) => (
+                  <button className="customer-data-row" type="button" key={entry.orderId} onClick={() => openOrder(entry)}>
+                    <div>
+                      <strong>{entry.orderNumber}</strong>
+                      <span>
+                        {entry.shopName} | {displayOrderStatus(entry.status)} | {formatCurrency(entry.totalAmount)}
+                      </span>
+                    </div>
+                    <small>{timeAgo(entry.createdAt)}</small>
+                  </button>
+                ))
+              ) : (
+                <div className="customer-empty customer-empty-inline">
+                  <strong>No order history yet</strong>
+                  <p>Your orders will appear here after checkout.</p>
+                </div>
+              )}
+            </div>
+          </section>
+        </section>
+      );
+    }
+
     return (
-      <section className="customer-section customer-profile-section">
+      <section className="customer-section customer-profile-section customer-profile-overview">
         <div className="customer-section-head">
           <div>
             <p className="customer-overline">Profile</p>
@@ -2508,6 +2705,37 @@ function CustomerShop() {
               {currentShopSaved ? "Saved shop" : "Save shop"}
             </button>
           </div>
+        </section>
+
+        <section className="customer-profile-menu" aria-label="Profile sections">
+          <button type="button" className="customer-profile-menu-row" onClick={() => setProfileView("details")}>
+            <span>
+              <strong>Profile</strong>
+              <small>Image, name, and phone details</small>
+            </span>
+            <b>{profileName}</b>
+          </button>
+          <button type="button" className="customer-profile-menu-row" onClick={() => setProfileView("addresses")}>
+            <span>
+              <strong>Addresses</strong>
+              <small>Manage order delivery addresses</small>
+            </span>
+            <b>{savedAddresses.length}</b>
+          </button>
+          <button type="button" className="customer-profile-menu-row" onClick={() => setProfileView("shops")}>
+            <span>
+              <strong>Saved shops</strong>
+              <small>Open shops saved for repeat ordering</small>
+            </span>
+            <b>{savedShops.length}</b>
+          </button>
+          <button type="button" className="customer-profile-menu-row" onClick={() => setProfileView("orders")}>
+            <span>
+              <strong>Recent orders</strong>
+              <small>Track and reopen previous orders</small>
+            </span>
+            <b>{orderHistory.length}</b>
+          </button>
         </section>
 
         <div className="customer-profile-grid">

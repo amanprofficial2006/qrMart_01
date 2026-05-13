@@ -2853,6 +2853,63 @@ body.customer-body #root {
   font-weight: 900;
 }
 
+.customer-profile-menu {
+  display: grid;
+  gap: 12px;
+}
+
+.customer-profile-menu-row {
+  width: 100%;
+  min-height: 74px;
+  border: 1px solid rgba(126, 93, 61, 0.1);
+  border-radius: 20px;
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.82);
+  color: #24170f;
+  text-align: left;
+  box-shadow: 0 12px 26px rgba(126, 93, 61, 0.06);
+}
+
+.customer-profile-menu-row span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.customer-profile-menu-row strong {
+  color: #24170f;
+  font-size: 1.05rem;
+}
+
+.customer-profile-menu-row small {
+  color: #735f50;
+  font-weight: 700;
+}
+
+.customer-profile-menu-row b {
+  min-width: 38px;
+  height: 38px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  padding: 0 10px;
+  background: #fff2ec;
+  color: #9d3f22;
+}
+
+.customer-profile-menu-row:hover {
+  border-color: rgba(255, 138, 89, 0.22);
+  box-shadow: 0 16px 30px rgba(126, 93, 61, 0.1);
+}
+
+.customer-profile-overview .customer-profile-grid {
+  display: none;
+}
+
 .customer-profile-section .customer-panel {
   border-radius: 24px;
   border: 1px solid rgba(126, 93, 61, 0.1);
