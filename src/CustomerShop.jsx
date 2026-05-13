@@ -29,7 +29,7 @@ const mobileTabs = [
 
 const orderFlowRoutes = new Set(["menu", "cart", "verify", "payment", "waiting", "track"]);
 const checkoutRoutes = new Set(["verify", "payment"]);
-const trackStatuses = ["payment_claimed", "accepted", "preparing", "ready", "completed"];
+const trackStatuses = ["payment_claimed", "accepted", "preparing", "ready", "out_for_delivery", "completed"];
 
 const CUSTOMER_SESSION_KEY = "qrmart_customer_session";
 const CART_STORAGE_KEY_PREFIX = "qrmart_customer_cart:";
@@ -331,6 +331,13 @@ function orderStateCopy(order) {
         copy: "Head to the counter or pickup point. The shop has marked your order ready.",
         eta: "Ready right now"
       };
+    case "out_for_delivery":
+      return {
+        eyebrow: "On the way",
+        title: "Out for delivery",
+        copy: "Your order has left the shop and is on the way to you.",
+        eta: "Arriving soon"
+      };
     case "completed":
       return {
         eyebrow: "Completed",
@@ -347,6 +354,18 @@ function orderStateCopy(order) {
         eta: "Usually confirmed in 2 to 5 minutes"
       };
   }
+}
+
+function productPrice(product, method = "online") {
+  if (method === "cash") {
+    return Number(product?.codPrice ?? product?.price ?? product?.onlinePrice ?? 0);
+  }
+
+  return Number(product?.onlinePrice ?? product?.price ?? product?.codPrice ?? 0);
+}
+
+function productPriceLabel(product) {
+  return `Online ${formatCurrency(productPrice(product, "online"))} | COD ${formatCurrency(productPrice(product, "cash"))}`;
 }
 
 function trackingSteps(order) {
@@ -372,6 +391,11 @@ function trackingSteps(order) {
       id: "ready",
       title: "Ready",
       text: "The order is ready to collect or serve."
+    },
+    {
+      id: "out_for_delivery",
+      title: "Out for delivery",
+      text: "The order has left the shop and is on the way."
     },
     {
       id: "completed",
@@ -407,6 +431,28 @@ function buildNotification(title, message, extras = {}) {
   };
 }
 
+function buildOrderStatusNotification(order, status) {
+  const nextStatus = normalizeStatus(status || order?.status);
+  const displayStatus = displayOrderStatus(nextStatus);
+  const orderNumber = order?.orderNumber || "Order";
+
+  if (nextStatus === "rejected") {
+    const reason = String(order?.rejectionReason || "").trim();
+
+    return {
+      title: "Order Rejected",
+      message: reason
+        ? `${orderNumber} was rejected. Reason: ${reason}`
+        : `${orderNumber} was rejected by the shop.`
+    };
+  }
+
+  return {
+    title: `Order ${displayStatus}`,
+    message: `${orderNumber} status updated to ${displayStatus}.`
+  };
+}
+
 function buildOrderRecord(orderData, shop, cartItems, customer, customerSession, basePath) {
   return {
     ...orderData,
@@ -421,7 +467,7 @@ function buildOrderRecord(orderData, shop, cartItems, customer, customerSession,
     items: cartItems.map((item) => ({
       productId: item._id,
       name: item.name,
-      price: item.price,
+      price: item.selectedPrice ?? item.price,
       quantity: item.quantity,
       imageUrl: item.imageUrl || ""
     })),
@@ -566,22 +612,24 @@ function CustomerShop() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [profileView, setProfileView] = useState("overview");
+  const [paymentMethod, setPaymentMethod] = useState("upi");
 
   const cartItems = products
     .map((product) => ({
       ...product,
-      quantity: cart[product._id] || 0
+      quantity: cart[product._id] || 0,
+      selectedPrice: productPrice(product, paymentMethod === "cash" ? "cash" : "online")
     }))
     .filter((item) => item.quantity > 0);
 
-  const itemTotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const itemTotal = cartItems.reduce((sum, item) => sum + item.selectedPrice * item.quantity, 0);
   const deliveryCharge = Number(shop?.settings?.deliveryCharge || 0);
   const payableDeliveryCharge = cartItems.length ? deliveryCharge : 0;
   const totalAmount = itemTotal + payableDeliveryCharge;
   const categoryGroups = groupByCategory(products);
   const categories = Object.entries(categoryGroups);
   const paymentConfigured = Boolean(shop?.payment?.upiId || shop?.payment?.qrCodeUrl);
-  const upiLink = buildUpiLink(shop, totalAmount);
+  const upiLink = paymentMethod === "upi" ? buildUpiLink(shop, totalAmount) : "";
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
   const currentShopOrder = activeOrder || orderHistory.find((entry) => entry.slug === slug) || null;
   const dashboardOrder = activeOrder || orderHistory[0] || null;
@@ -845,6 +893,13 @@ function CustomerShop() {
   }, [activeStep]);
 
   useEffect(() => {
+    if (!paymentConfigured && paymentMethod !== "cash") {
+      setPaymentMethod("cash");
+      setPaymentAcknowledged(false);
+    }
+  }, [paymentConfigured, paymentMethod]);
+
+  useEffect(() => {
     const allowProfileVerify = activeStep === "verify" && profileLoginIntent;
 
     if (!cartItems.length && checkoutRoutes.has(activeStep) && !allowProfileVerify) {
@@ -878,9 +933,8 @@ function CustomerShop() {
         const nextOrder = mergeOrderUpdate(currentShopOrder, result.data);
 
         if (result.data.status !== lastStatus) {
-          const title = `Order ${displayOrderStatus(result.data.status)}`;
-          const message = `${nextOrder.orderNumber} status updated to ${displayOrderStatus(result.data.status)}.`;
-          appendNotification(title, message, {
+          const notification = buildOrderStatusNotification(nextOrder, result.data.status);
+          appendNotification(notification.title, notification.message, {
             orderId: nextOrder.orderId,
             status: result.data.status,
             step: resolveOrderRoute(nextOrder)
@@ -927,9 +981,8 @@ function CustomerShop() {
         const nextOrder = mergeOrderUpdate(baseOrder, updatedOrder);
 
         if (updatedOrder.status && updatedOrder.status !== baseOrder.status) {
-          const title = `Order ${displayOrderStatus(updatedOrder.status)}`;
-          const message = `${nextOrder.orderNumber} status updated to ${displayOrderStatus(updatedOrder.status)}.`;
-          appendNotification(title, message, {
+          const notification = buildOrderStatusNotification(nextOrder, updatedOrder.status);
+          appendNotification(notification.title, notification.message, {
             orderId: nextOrder.orderId,
             status: updatedOrder.status,
             step: resolveOrderRoute(nextOrder)
@@ -1320,7 +1373,7 @@ function CustomerShop() {
       return;
     }
 
-    if (paymentConfigured && !paymentAcknowledged) {
+    if (paymentMethod === "upi" && paymentConfigured && !paymentAcknowledged) {
       setError("Mark payment as completed before placing the order.");
       return;
     }
@@ -1343,7 +1396,8 @@ function CustomerShop() {
             location
           },
           payment: {
-            declaredPaid: paymentAcknowledged
+            method: paymentMethod,
+            declaredPaid: paymentMethod === "upi" && paymentAcknowledged
           },
           items: cartItems.map((item) => ({
             productId: item._id,
@@ -1377,6 +1431,7 @@ function CustomerShop() {
       setCustomerSession(nextSession);
       setCart({});
       setPaymentAcknowledged(false);
+      setPaymentMethod("upi");
       setCustomerNotificationStatus("");
 
       appendNotification(
@@ -1594,7 +1649,7 @@ function CustomerShop() {
                     />
                     <span>
                       <strong>{product.name}</strong>
-                      <small>{product.category || "Product"} | {formatCurrency(product.price)}</small>
+                      <small>{product.category || "Product"} | {productPriceLabel(product)}</small>
                     </span>
                   </button>
                 ))
@@ -1743,7 +1798,11 @@ function CustomerShop() {
                       <div className="customer-menu-copy">
                         <div className="customer-price-row">
                           <span>{product.category || "Featured"}</span>
-                          <strong>{formatCurrency(product.price)}</strong>
+                          <strong>{formatCurrency(productPrice(product, "online"))}</strong>
+                        </div>
+                        <div className="customer-price-duo">
+                          <span>Online {formatCurrency(productPrice(product, "online"))}</span>
+                          <span>COD {formatCurrency(productPrice(product, "cash"))}</span>
                         </div>
                         <h3>{product.name}</h3>
                         <p>{product.description || "Freshly listed for fast QR ordering."}</p>
@@ -1824,7 +1883,11 @@ function CustomerShop() {
               <div className="customer-product-copy">
                 <div className="customer-product-meta">
                   <span>{activeProduct.category || "Featured"}</span>
-                  <strong>{formatCurrency(activeProduct.price)}</strong>
+                  <strong>{formatCurrency(productPrice(activeProduct, "online"))}</strong>
+                </div>
+                <div className="customer-price-duo">
+                  <span>Online {formatCurrency(productPrice(activeProduct, "online"))}</span>
+                  <span>COD {formatCurrency(productPrice(activeProduct, "cash"))}</span>
                 </div>
 
                 <p>{activeProduct.description || "Freshly listed for fast QR ordering."}</p>
@@ -1895,7 +1958,7 @@ function CustomerShop() {
                       </div>
                       <div>
                         <h3>{item.name}</h3>
-                        <p>{formatCurrency(item.price)} each</p>
+                        <p>{formatCurrency(item.selectedPrice)} each | {paymentMethod === "cash" ? "COD" : "Online"}</p>
                       </div>
                       <div className="customer-qty">
                         <button type="button" onClick={() => changeQuantity(item._id, -1)}>
@@ -1906,7 +1969,7 @@ function CustomerShop() {
                           +
                         </button>
                       </div>
-                      <strong>{formatCurrency(item.price * item.quantity)}</strong>
+                      <strong>{formatCurrency(item.selectedPrice * item.quantity)}</strong>
                     </article>
                   ))}
                 </div>
@@ -2109,10 +2172,38 @@ function CustomerShop() {
           </section>
 
           <section className="customer-panel customer-payment-card">
-            <p className="customer-overline">UPI payment</p>
-            <h3>Pay before placing order</h3>
+            <p className="customer-overline">Payment method</p>
+            <h3>Choose how you want to pay</h3>
 
-            {paymentConfigured ? (
+            <div className="customer-payment-methods">
+              <button
+                className={paymentMethod === "upi" ? "is-active" : ""}
+                type="button"
+                onClick={() => setPaymentMethod("upi")}
+                disabled={!paymentConfigured}
+              >
+                <strong>Online</strong>
+                <span>{formatCurrency(cartItems.reduce((sum, item) => sum + productPrice(item, "online") * item.quantity, 0) + payableDeliveryCharge)}</span>
+              </button>
+              <button
+                className={paymentMethod === "cash" ? "is-active" : ""}
+                type="button"
+                onClick={() => {
+                  setPaymentMethod("cash");
+                  setPaymentAcknowledged(false);
+                }}
+              >
+                <strong>COD</strong>
+                <span>{formatCurrency(cartItems.reduce((sum, item) => sum + productPrice(item, "cash") * item.quantity, 0) + payableDeliveryCharge)}</span>
+              </button>
+            </div>
+
+            {paymentMethod === "cash" ? (
+              <div className="customer-empty">
+                <strong>Cash on delivery selected</strong>
+                <p>Pay the COD amount when your order is delivered or collected.</p>
+              </div>
+            ) : paymentConfigured ? (
               <>
                 {shop.payment?.qrCodeUrl ? (
                   <div className="customer-payment-qr-frame">

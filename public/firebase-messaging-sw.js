@@ -41,6 +41,11 @@ if (firebaseConfig.apiKey && firebaseConfig.messagingSenderId && firebaseConfig.
     const data = payload.data || {};
     const type = String(data.type || "").toUpperCase();
     const isNewOrder = type === "NEW_ORDER";
+    const isOrderUpdate = type === "ORDER_UPDATE";
+    const targetUrl =
+      isOrderUpdate && data.shopSlug
+        ? `/shop/${encodeURIComponent(data.shopSlug)}/${data.status === "rejected" ? "track" : "notifications"}`
+        : "/dashboard";
     const windowClients = isNewOrder
       ? await self.clients.matchAll({ type: "window", includeUncontrolled: true })
       : [];
@@ -54,7 +59,7 @@ if (firebaseConfig.apiKey && firebaseConfig.messagingSenderId && firebaseConfig.
       requireInteraction: true,
       silent: isNewOrder && ownerClients.length > 0,
       data: {
-        url: "/dashboard"
+        url: targetUrl
       }
     });
 

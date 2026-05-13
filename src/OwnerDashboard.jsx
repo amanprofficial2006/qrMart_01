@@ -33,6 +33,8 @@ const emptyProductForm = {
   id: "",
   name: "",
   price: "",
+  codPrice: "",
+  onlinePrice: "",
   category: "General",
   description: "",
   isAvailable: true,
@@ -415,7 +417,9 @@ function OwnerDashboard() {
     setProductForm({
       id: product._id,
       name: product.name,
-      price: product.price,
+      price: product.onlinePrice ?? product.price,
+      onlinePrice: product.onlinePrice ?? product.price,
+      codPrice: product.codPrice ?? product.price,
       category: product.category || "General",
       description: product.description || "",
       isAvailable: product.isAvailable,
@@ -431,7 +435,9 @@ function OwnerDashboard() {
 
     const formData = new FormData();
     formData.append("name", productForm.name);
-    formData.append("price", productForm.price);
+    formData.append("price", productForm.onlinePrice || productForm.price);
+    formData.append("onlinePrice", productForm.onlinePrice || productForm.price);
+    formData.append("codPrice", productForm.codPrice || productForm.price);
     formData.append("category", productForm.category);
     formData.append("description", productForm.description);
     formData.append("isAvailable", String(productForm.isAvailable));
@@ -687,10 +693,19 @@ function OwnerDashboard() {
               <input value={productForm.name} onChange={(event) => updateProductForm("name", event.target.value)} required />
             </label>
             <label>
-              Price
+              Online price
               <input
-                value={productForm.price}
-                onChange={(event) => updateProductForm("price", event.target.value)}
+                value={productForm.onlinePrice || productForm.price}
+                onChange={(event) => updateProductForm("onlinePrice", event.target.value)}
+                inputMode="decimal"
+                required
+              />
+            </label>
+            <label>
+              COD price
+              <input
+                value={productForm.codPrice}
+                onChange={(event) => updateProductForm("codPrice", event.target.value)}
                 inputMode="decimal"
                 required
               />
@@ -749,7 +764,7 @@ function OwnerDashboard() {
                   <div>
                     <h3>{product.name}</h3>
                     <p className="muted owner-product-meta">
-                      Rs. {product.price} - {product.category || "General"} - {product.isAvailable ? "Available" : "Hidden"}
+                      Online Rs. {product.onlinePrice ?? product.price} - COD Rs. {product.codPrice ?? product.price} - {product.category || "General"} - {product.isAvailable ? "Available" : "Hidden"}
                     </p>
                   </div>
                   <div className="row-actions">
@@ -1088,6 +1103,11 @@ function OrderList({ orders, shopName, onStatus, onSendNotification, emptyText }
               </button>
             ) : null}
             {order.status === "ready" ? (
+              <button type="button" onClick={() => onStatus(order._id, "out_for_delivery")}>
+                Out for delivery
+              </button>
+            ) : null}
+            {order.status === "out_for_delivery" ? (
               <button type="button" onClick={() => onStatus(order._id, "completed")}>
                 Complete
               </button>
