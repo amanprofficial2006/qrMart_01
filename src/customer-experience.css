@@ -2688,6 +2688,8 @@ body.customer-body #root {
   height: 72px;
   flex: 0 0 auto;
   border-radius: 22px;
+  border: 0;
+  padding: 0;
   display: grid;
   place-items: center;
   background: linear-gradient(135deg, #ff8a59, #ff6047);
@@ -2695,6 +2697,27 @@ body.customer-body #root {
   font-size: 1.8rem;
   font-weight: 900;
   box-shadow: 0 18px 34px rgba(255, 99, 71, 0.22);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.customer-profile-avatar img,
+.customer-profile-avatar span {
+  width: 100%;
+  height: 100%;
+}
+
+.customer-profile-avatar img {
+  object-fit: cover;
+}
+
+.customer-profile-avatar span {
+  display: grid;
+  place-items: center;
+}
+
+.customer-hidden-file {
+  display: none;
 }
 
 .customer-profile-copy {
@@ -2751,6 +2774,15 @@ body.customer-body #root {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.customer-profile-form {
+  display: grid;
+  gap: 14px;
+}
+
+.customer-profile-form .customer-primary-action {
+  justify-self: start;
 }
 
 .customer-profile-section .customer-panel {
@@ -3665,6 +3697,71 @@ body.customer-body #root {
 
   .customer-shell {
     padding-bottom: 24px !important;
+  }
+}
+
+/* Keep the customer topbar identical on every route. */
+.customer-route-menu .customer-topbar {
+  grid-template-columns: minmax(170px, 260px) minmax(220px, 1fr) auto;
+  gap: 14px;
+  padding: 14px 18px;
+}
+
+.customer-route-menu .customer-topbar-search {
+  width: 100%;
+  max-width: none;
+  justify-self: stretch;
+}
+
+.customer-route-menu .customer-brand {
+  gap: 12px;
+}
+
+.customer-route-menu .customer-brand-icon,
+.customer-route-menu .customer-logo-image,
+.customer-route-menu .customer-brand-fallback {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+}
+
+.customer-route-menu .customer-brand-copy strong {
+  font-size: clamp(1.2rem, 2.2vw, 1.7rem);
+}
+
+.customer-route-menu .customer-search-field,
+.customer-route-menu .customer-icon-chip {
+  min-height: 44px;
+}
+
+.customer-route-menu .customer-icon-chip {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  border-radius: 16px;
+}
+
+@media (max-width: 760px) {
+  .customer-route-menu .customer-topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 14px 18px;
+  }
+
+  .customer-route-menu .customer-brand {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .customer-route-menu .customer-topbar-actions {
+    grid-column: 2;
+    grid-row: 1;
+    gap: 8px;
+  }
+
+  .customer-route-menu .customer-topbar-search {
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
 }
 

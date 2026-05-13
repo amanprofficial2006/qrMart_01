@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import "./customer-experience.css";
 import { API_BASE_URL, assetUrl } from "./api.js";
@@ -127,6 +127,20 @@ function readCustomerSession() {
 
 function saveCustomerSession(session) {
   writeJson(CUSTOMER_SESSION_KEY, session);
+}
+
+function mergeCustomerSession(currentSession, customer) {
+  if (!currentSession?.token) {
+    return null;
+  }
+
+  return {
+    ...currentSession,
+    customer: {
+      ...currentSession.customer,
+      ...customer
+    }
+  };
 }
 
 function clearCustomerSession() {
@@ -294,6 +308,13 @@ function orderStateCopy(order) {
   const normalized = normalizeStatus(order?.status);
 
   switch (normalized) {
+    case "rejected":
+      return {
+        eyebrow: "Rejected",
+        title: "Order rejected",
+        copy: order?.rejectionReason || "The shop could not accept this order.",
+        eta: "Rejected by shop"
+      };
     case "accepted":
       return {
         eyebrow: "Payment verified",
@@ -428,6 +449,7 @@ function mergeOrderUpdate(currentOrder, update) {
     orderId: update.orderId || update._id || currentOrder.orderId,
     orderNumber: update.orderNumber || currentOrder.orderNumber,
     status: update.status || currentOrder.status,
+    rejectionReason: update.rejectionReason ?? currentOrder.rejectionReason ?? "",
     totalAmount: update.totalAmount ?? currentOrder.totalAmount,
     pricing: update.pricing || currentOrder.pricing,
     payment: update.payment || currentOrder.payment,
@@ -508,10 +530,21 @@ function CustomerShop() {
     return {
       name: savedSession?.customer?.name || "",
       phone: savedSession?.customer?.phone || "",
-      address: savedAddresses[0]?.address || "",
+      address: savedSession?.customer?.address || savedAddresses[0]?.address || "",
       note: ""
     };
   });
+  const avatarInputRef = useRef(null);
+  const [profileForm, setProfileForm] = useState(() => {
+    const savedSession = readCustomerSession();
+    const savedAddresses = readSavedAddresses();
+    return {
+      name: savedSession?.customer?.name || "",
+      address: savedSession?.customer?.address || savedAddresses[0]?.address || ""
+    };
+  });
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileAvatarSaving, setProfileAvatarSaving] = useState(false);
   const [otp, setOtp] = useState("");
   const [location, setLocation] = useState(null);
   const [locationStatus, setLocationStatus] = useState("Trying to attach your location for easier support...");
@@ -567,6 +600,7 @@ function CustomerShop() {
       )
     : products
   ).slice(0, 8);
+  const currentShopSaved = Boolean(shop && savedShops.some((entry) => entry.slug === shop.slug));
 
   useEffect(() => {
     document.body.classList.add("customer-body");
@@ -682,6 +716,23 @@ function CustomerShop() {
   useEffect(() => {
     writeJson(INSTALL_BANNER_KEY, installDismissed);
   }, [installDismissed]);
+
+  useEffect(() => {
+    if (!customerSession?.customer) {
+      return;
+    }
+
+    setProfileForm({
+      name: customerSession.customer.name || "",
+      address: customerSession.customer.address || customer.address || ""
+    });
+    setCustomer((current) => ({
+      ...current,
+      name: customerSession.customer.name || current.name,
+      phone: customerSession.customer.phone || current.phone,
+      address: customerSession.customer.address || current.address
+    }));
+  }, [customerSession?.customer?.name, customerSession?.customer?.phone, customerSession?.customer?.address]);
 
   useEffect(() => {
     if (activeOrder) {
@@ -957,7 +1008,132 @@ function CustomerShop() {
       ...current,
       address: entry.address
     }));
+    setProfileForm((current) => ({
+      ...current,
+      address: entry.address
+    }));
     appendNotification("Address applied", "Your saved address has been copied into the payment form.");
+  }
+
+  function toggleSaveShop() {
+    if (!shop) {
+      return;
+    }
+
+    const snapshot = createShopSnapshot(shop, pathInfo.basePath);
+
+    if (currentShopSaved) {
+      setSavedShops((current) => current.filter((entry) => entry.slug !== shop.slug));
+      appendNotification("Shop removed", `${shop.name} removed from saved shops.`);
+      return;
+    }
+
+    setSavedShops((current) => upsertById(current, snapshot, "slug").slice(0, 12));
+    appendNotification("Shop saved", `${shop.name} is now saved in your profile.`);
+  }
+
+  async function saveCustomerProfile(event) {
+    event.preventDefault();
+
+    if (!customerSession?.token || profileSaving) {
+      return;
+    }
+
+    if (!profileForm.name.trim()) {
+      setError("Name is required.");
+      return;
+    }
+
+    setProfileSaving(true);
+    setError("");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/public/customers/profile`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${customerSession.token}`
+        },
+        body: JSON.stringify({
+          name: profileForm.name,
+          address: profileForm.address
+        })
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Unable to save profile.");
+      }
+
+      const nextSession = mergeCustomerSession(customerSession, result.data.customer);
+      saveCustomerSession(nextSession);
+      setCustomerSession(nextSession);
+      setCustomer((current) => ({
+        ...current,
+        name: result.data.customer.name || current.name,
+        address: result.data.customer.address || current.address
+      }));
+
+      if (result.data.customer.address) {
+        setSavedAddresses((current) =>
+          upsertById(
+            current,
+            {
+              id: `${result.data.customer.address.trim().toLowerCase()}-${result.data.customer.phone}`,
+              title: "Profile",
+              address: result.data.customer.address.trim(),
+              phone: result.data.customer.phone,
+              updatedAt: new Date().toISOString()
+            },
+            "id"
+          ).slice(0, 6)
+        );
+      }
+
+      appendNotification("Profile saved", "Your name and address have been updated.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
+  async function uploadCustomerAvatar(event) {
+    const file = event.target.files?.[0];
+
+    if (!file || !customerSession?.token || profileAvatarSaving) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+    setProfileAvatarSaving(true);
+    setError("");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/public/customers/profile/avatar`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${customerSession.token}`
+        },
+        body: formData
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Unable to upload profile image.");
+      }
+
+      const nextSession = mergeCustomerSession(customerSession, result.data.customer);
+      saveCustomerSession(nextSession);
+      setCustomerSession(nextSession);
+      appendNotification("Profile image updated", "Your profile photo has been saved.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setProfileAvatarSaving(false);
+      event.target.value = "";
+    }
   }
 
   function resetVerifiedCustomer() {
@@ -1103,6 +1279,12 @@ function CustomerShop() {
       setActiveOrder(nextOrder);
       setOrderHistory((current) => upsertById(current, nextOrder, "orderId").slice(0, 12));
       setSavedAddresses((current) => upsertById(current, savedAddress, "id").slice(0, 6));
+      const nextSession = mergeCustomerSession(customerSession, {
+        name: customer.name.trim() || customerSession.customer.name || "",
+        address: customer.address.trim()
+      });
+      saveCustomerSession(nextSession);
+      setCustomerSession(nextSession);
       setCart({});
       setPaymentAcknowledged(false);
       setCustomerNotificationStatus("");
@@ -1333,6 +1515,23 @@ function CustomerShop() {
         </div>
 
         <div className="customer-topbar-actions">
+          <button
+            type="button"
+            className={`customer-ghost-chip customer-icon-chip ${currentShopSaved ? "is-active" : ""}`}
+            onClick={toggleSaveShop}
+            aria-label={currentShopSaved ? "Remove saved shop" : "Save shop"}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M12 3.5 14.7 9l6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9l6.1-.9L12 3.5Z"
+                stroke="currentColor"
+                strokeWidth="1.9"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill={currentShopSaved ? "currentColor" : "none"}
+              />
+            </svg>
+          </button>
           <button
             type="button"
             className={`customer-ghost-chip customer-icon-chip ${activeStep === "cart" ? "is-active" : ""}`}
@@ -1963,10 +2162,7 @@ function CustomerShop() {
           <section className="customer-panel">
             <p className="customer-overline">Order status</p>
             <h3>{displayOrderStatus(currentShopOrder.status)}</h3>
-            <p>Keep this page open or enable notifications so the next state reaches you the moment the owner confirms.</p>
-            <button className="customer-primary-action" type="button" onClick={enableOrderUpdates} disabled={enablingOrderUpdates}>
-              {enablingOrderUpdates ? "Connecting..." : "Enable live updates"}
-            </button>
+            <p>{currentShopOrder.rejectionReason || "Keep this page open so the next state reaches you the moment the owner confirms."}</p>
             {customerNotificationStatus ? <small>{customerNotificationStatus}</small> : null}
           </section>
         </div>
@@ -2065,6 +2261,12 @@ function CustomerShop() {
                   <span>Latest ETA</span>
                   <strong>{orderStateCopy(currentShopOrder).eta}</strong>
                 </div>
+                {currentShopOrder.rejectionReason ? (
+                  <div>
+                    <span>Reject reason</span>
+                    <strong>{currentShopOrder.rejectionReason}</strong>
+                  </div>
+                ) : null}
               </div>
             </section>
 
@@ -2226,13 +2428,29 @@ function CustomerShop() {
 
         <section className="customer-profile-hero">
           <div className="customer-profile-identity">
-            <div className="customer-profile-avatar" aria-hidden="true">
-              {(customerSession?.customer?.name || "Q").charAt(0).toUpperCase()}
-            </div>
+            <button
+              className="customer-profile-avatar"
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              aria-label="Change profile image"
+            >
+              <SafeImage
+                src={assetUrl(customerSession?.customer?.avatarUrl)}
+                alt=""
+                fallback={<span>{(customerSession?.customer?.name || "Q").charAt(0).toUpperCase()}</span>}
+              />
+            </button>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              className="customer-hidden-file"
+              onChange={uploadCustomerAvatar}
+            />
             <div className="customer-profile-copy">
               <span className="customer-profile-kicker">Verified customer</span>
               <h3>{customerSession?.customer?.name || "Guest customer"}</h3>
-              <p>{customerSession?.customer?.phone || "Verify at checkout"}</p>
+              <p>{profileAvatarSaving ? "Uploading profile image..." : customerSession?.customer?.phone || "Verify at checkout"}</p>
             </div>
           </div>
 
@@ -2261,10 +2479,41 @@ function CustomerShop() {
                 Browse menu
               </button>
             )}
+            <button className="customer-secondary-action" type="button" onClick={toggleSaveShop}>
+              {currentShopSaved ? "Saved shop" : "Save shop"}
+            </button>
           </div>
         </section>
 
         <div className="customer-profile-grid">
+          <section className="customer-panel customer-panel-wide">
+            <p className="customer-overline">Edit profile</p>
+            <h3>Name and address</h3>
+            <form className="customer-profile-form" onSubmit={saveCustomerProfile}>
+              <label className="customer-field">
+                <span>Name</span>
+                <input
+                  value={profileForm.name}
+                  onChange={(event) => setProfileForm({ ...profileForm, name: event.target.value })}
+                  placeholder="Your name"
+                  required
+                />
+              </label>
+              <label className="customer-field customer-field-wide">
+                <span>Address</span>
+                <textarea
+                  value={profileForm.address}
+                  onChange={(event) => setProfileForm({ ...profileForm, address: event.target.value })}
+                  placeholder="House, street, landmark, or pickup counter note"
+                  rows="3"
+                />
+              </label>
+              <button className="customer-primary-action" type="submit" disabled={profileSaving}>
+                {profileSaving ? "Saving..." : "Save profile"}
+              </button>
+            </form>
+          </section>
+
           <section className="customer-panel">
             <p className="customer-overline">Identity</p>
             <h3>Account details</h3>
@@ -2272,6 +2521,10 @@ function CustomerShop() {
               <div>
                 <span>Phone</span>
                 <strong>{customerSession?.customer?.phone || "Verify at checkout"}</strong>
+              </div>
+              <div>
+                <span>Address</span>
+                <strong>{customerSession?.customer?.address || customer.address || "Not added"}</strong>
               </div>
               <div>
                 <span>Saved addresses</span>
