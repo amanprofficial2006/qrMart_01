@@ -537,11 +537,13 @@ function CustomerShop() {
   const avatarInputRef = useRef(null);
   const [profileForm, setProfileForm] = useState(() => {
     const savedSession = readCustomerSession();
-    const savedAddresses = readSavedAddresses();
     return {
-      name: savedSession?.customer?.name || "",
-      address: savedSession?.customer?.address || savedAddresses[0]?.address || ""
+      name: savedSession?.customer?.name || ""
     };
+  });
+  const [addressForm, setAddressForm] = useState({
+    title: "Home",
+    address: ""
   });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileAvatarSaving, setProfileAvatarSaving] = useState(false);
@@ -723,8 +725,7 @@ function CustomerShop() {
     }
 
     setProfileForm({
-      name: customerSession.customer.name || "",
-      address: customerSession.customer.address || customer.address || ""
+      name: customerSession.customer.name || ""
     });
     setCustomer((current) => ({
       ...current,
@@ -1008,11 +1009,53 @@ function CustomerShop() {
       ...current,
       address: entry.address
     }));
-    setProfileForm((current) => ({
-      ...current,
-      address: entry.address
-    }));
     appendNotification("Address applied", "Your saved address has been copied into the payment form.");
+  }
+
+  function addSavedAddress(event) {
+    event.preventDefault();
+
+    if (!addressForm.address.trim()) {
+      setError("Address is required.");
+      return;
+    }
+
+    const cleanAddress = addressForm.address.trim();
+    const cleanTitle = addressForm.title.trim() || "Address";
+    const phone = customerSession?.customer?.phone || customer.phone || "";
+    const nextAddress = {
+      id: `${cleanAddress.toLowerCase()}-${phone || Date.now()}`,
+      title: cleanTitle,
+      address: cleanAddress,
+      phone,
+      updatedAt: new Date().toISOString()
+    };
+
+    setSavedAddresses((current) => upsertById(current, nextAddress, "id").slice(0, 8));
+    setCustomer((current) => ({
+      ...current,
+      address: cleanAddress
+    }));
+    setAddressForm({
+      title: "Home",
+      address: ""
+    });
+    setError("");
+    appendNotification("Address saved", "This address is ready for your next order.");
+  }
+
+  function removeSavedAddress(entry) {
+    setSavedAddresses((current) => current.filter((item) => item.id !== entry.id));
+
+    if (customer.address === entry.address) {
+      const nextAddress = savedAddresses.find((item) => item.id !== entry.id)?.address || "";
+      setCustomer((current) => ({
+        ...current,
+        address: nextAddress
+      }));
+    }
+
+    appendNotification("Address removed", "The address was removed from your saved list.");
   }
 
   function toggleSaveShop() {
@@ -1056,7 +1099,7 @@ function CustomerShop() {
         },
         body: JSON.stringify({
           name: profileForm.name,
-          address: profileForm.address
+          address: customerSession.customer.address || ""
         })
       });
       const result = await response.json();
@@ -1070,27 +1113,9 @@ function CustomerShop() {
       setCustomerSession(nextSession);
       setCustomer((current) => ({
         ...current,
-        name: result.data.customer.name || current.name,
-        address: result.data.customer.address || current.address
+        name: result.data.customer.name || current.name
       }));
-
-      if (result.data.customer.address) {
-        setSavedAddresses((current) =>
-          upsertById(
-            current,
-            {
-              id: `${result.data.customer.address.trim().toLowerCase()}-${result.data.customer.phone}`,
-              title: "Profile",
-              address: result.data.customer.address.trim(),
-              phone: result.data.customer.phone,
-              updatedAt: new Date().toISOString()
-            },
-            "id"
-          ).slice(0, 6)
-        );
-      }
-
-      appendNotification("Profile saved", "Your name and address have been updated.");
+      appendNotification("Profile saved", "Your name has been updated.");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -2488,8 +2513,26 @@ function CustomerShop() {
         <div className="customer-profile-grid">
           <section className="customer-panel customer-panel-wide">
             <p className="customer-overline">Edit profile</p>
-            <h3>Name and address</h3>
+            <h3>Profile details</h3>
             <form className="customer-profile-form" onSubmit={saveCustomerProfile}>
+              <div className="customer-profile-image-row">
+                <button
+                  className="customer-profile-avatar customer-profile-avatar-small"
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  aria-label="Change profile image"
+                >
+                  <SafeImage
+                    src={assetUrl(customerSession?.customer?.avatarUrl)}
+                    alt=""
+                    fallback={<span>{(customerSession?.customer?.name || "Q").charAt(0).toUpperCase()}</span>}
+                  />
+                </button>
+                <div>
+                  <strong>Profile image</strong>
+                  <span>{profileAvatarSaving ? "Uploading..." : "Tap image to update"}</span>
+                </div>
+              </div>
               <label className="customer-field">
                 <span>Name</span>
                 <input
@@ -2499,17 +2542,36 @@ function CustomerShop() {
                   required
                 />
               </label>
+              <button className="customer-primary-action" type="submit" disabled={profileSaving}>
+                {profileSaving ? "Saving..." : "Save profile"}
+              </button>
+            </form>
+          </section>
+
+          <section className="customer-panel customer-panel-wide">
+            <p className="customer-overline">Order addresses</p>
+            <h3>Manage delivery addresses</h3>
+            <form className="customer-address-form" onSubmit={addSavedAddress}>
+              <label className="customer-field">
+                <span>Label</span>
+                <input
+                  value={addressForm.title}
+                  onChange={(event) => setAddressForm({ ...addressForm, title: event.target.value })}
+                  placeholder="Home, Work, Shop pickup"
+                />
+              </label>
               <label className="customer-field customer-field-wide">
                 <span>Address</span>
                 <textarea
-                  value={profileForm.address}
-                  onChange={(event) => setProfileForm({ ...profileForm, address: event.target.value })}
+                  value={addressForm.address}
+                  onChange={(event) => setAddressForm({ ...addressForm, address: event.target.value })}
                   placeholder="House, street, landmark, or pickup counter note"
                   rows="3"
+                  required
                 />
               </label>
-              <button className="customer-primary-action" type="submit" disabled={profileSaving}>
-                {profileSaving ? "Saving..." : "Save profile"}
+              <button className="customer-primary-action" type="submit">
+                Add address
               </button>
             </form>
           </section>
@@ -2521,10 +2583,6 @@ function CustomerShop() {
               <div>
                 <span>Phone</span>
                 <strong>{customerSession?.customer?.phone || "Verify at checkout"}</strong>
-              </div>
-              <div>
-                <span>Address</span>
-                <strong>{customerSession?.customer?.address || customer.address || "Not added"}</strong>
               </div>
               <div>
                 <span>Saved addresses</span>
@@ -2543,18 +2601,21 @@ function CustomerShop() {
             <div className="customer-data-list">
               {savedAddresses.length ? (
                 savedAddresses.map((entry) => (
-                  <button className="customer-data-row" type="button" key={entry.id} onClick={() => useSavedAddress(entry)}>
+                  <div className="customer-data-row customer-address-row" key={entry.id}>
                     <div>
                       <strong>{entry.title}</strong>
                       <span>{entry.address}</span>
                     </div>
-                    <small>{entry.phone || "Reuse"}</small>
-                  </button>
+                    <span className="customer-address-actions">
+                      <button type="button" onClick={() => useSavedAddress(entry)}>Use</button>
+                      <button type="button" onClick={() => removeSavedAddress(entry)}>Delete</button>
+                    </span>
+                  </div>
                 ))
               ) : (
                 <div className="customer-empty customer-empty-inline">
                   <strong>No saved addresses yet</strong>
-                  <p>Addresses from completed orders will automatically show up here.</p>
+                  <p>Add multiple addresses here and choose one during checkout.</p>
                 </div>
               )}
             </div>

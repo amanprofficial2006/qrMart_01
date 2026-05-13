@@ -2776,13 +2776,81 @@ body.customer-body #root {
   gap: 12px;
 }
 
-.customer-profile-form {
+.customer-profile-form,
+.customer-address-form {
   display: grid;
   gap: 14px;
 }
 
-.customer-profile-form .customer-primary-action {
+.customer-profile-form .customer-primary-action,
+.customer-address-form .customer-primary-action {
   justify-self: start;
+}
+
+.customer-profile-section .customer-field {
+  color: #4b3729;
+}
+
+.customer-profile-section .customer-field input,
+.customer-profile-section .customer-field textarea {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(255, 122, 82, 0.22);
+  color: #21160f;
+  caret-color: #21160f;
+}
+
+.customer-profile-section .customer-field input::placeholder,
+.customer-profile-section .customer-field textarea::placeholder {
+  color: #9b8170;
+}
+
+.customer-profile-image-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid rgba(126, 93, 61, 0.09);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.customer-profile-image-row div {
+  display: grid;
+  gap: 4px;
+}
+
+.customer-profile-image-row strong {
+  color: #24170f;
+}
+
+.customer-profile-image-row span {
+  color: #7a6251;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.customer-profile-avatar-small {
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  box-shadow: 0 12px 26px rgba(255, 99, 71, 0.16);
+}
+
+.customer-address-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.customer-address-actions button {
+  min-height: 34px;
+  border: 1px solid rgba(126, 93, 61, 0.12);
+  border-radius: 12px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #8d3b22;
+  font-weight: 900;
 }
 
 .customer-profile-section .customer-panel {
