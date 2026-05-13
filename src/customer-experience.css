@@ -2776,6 +2776,20 @@ body.customer-body #root {
   gap: 12px;
 }
 
+.customer-profile-bottom-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.customer-logout-action {
+  min-width: min(100%, 220px);
+  border-color: rgba(214, 48, 49, 0.24);
+  background: #d63031;
+  color: #fff7f7;
+  box-shadow: 0 14px 28px rgba(214, 48, 49, 0.18);
+}
+
 .customer-profile-form,
 .customer-address-form {
   display: grid;
@@ -3881,13 +3895,12 @@ body.customer-body #root {
     max-width: none;
   }
 
-  .customer-mobile-summary,
-  .customer-mobile-tabs {
+  .customer-mobile-summary {
     display: none !important;
   }
 
   .customer-shell {
-    padding-bottom: 24px !important;
+    padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important;
   }
 }
 

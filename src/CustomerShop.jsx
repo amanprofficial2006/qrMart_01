@@ -22,8 +22,8 @@ const accountSteps = [
 
 const routeSteps = [...flowSteps, ...accountSteps];
 const mobileTabs = [
-  { id: "menu", label: "Menu", icon: "menu" },
-  { id: "cart", label: "Cart", icon: "cart" },
+  { id: "menu", label: "Shop", icon: "shop" },
+  { id: "home", label: "Home", icon: "home" },
   { id: "profile", label: "Profile", icon: "user" }
 ];
 
@@ -35,7 +35,6 @@ const CUSTOMER_SESSION_KEY = "qrmart_customer_session";
 const CART_STORAGE_KEY_PREFIX = "qrmart_customer_cart:";
 const ACTIVE_ORDER_KEY_PREFIX = "qrmart_customer_active_order:";
 const ORDER_HISTORY_KEY = "qrmart_customer_order_history";
-const RECENT_SHOPS_KEY = "qrmart_recent_shops";
 const SAVED_SHOPS_KEY = "qrmart_saved_shops";
 const SAVED_ADDRESSES_KEY = "qrmart_saved_addresses";
 const CUSTOMER_NOTIFICATIONS_KEY = "qrmart_customer_notifications";
@@ -153,10 +152,6 @@ function clearCustomerSession() {
 
 function readOrderHistory() {
   return readJson(ORDER_HISTORY_KEY, []);
-}
-
-function readRecentShops() {
-  return readJson(RECENT_SHOPS_KEY, []);
 }
 
 function readSavedShops() {
@@ -558,7 +553,7 @@ function CustomerShop() {
   const [error, setError] = useState("");
   const [activeOrder, setActiveOrder] = useState(() => readActiveOrder(pathInfo.slug));
   const [orderHistory, setOrderHistory] = useState(readOrderHistory);
-  const [recentShops, setRecentShops] = useState(readRecentShops);
+  const [recentShops, setRecentShops] = useState([]);
   const [savedShops, setSavedShops] = useState(readSavedShops);
   const [savedAddresses, setSavedAddresses] = useState(readSavedAddresses);
   const [notifications, setNotifications] = useState(readNotifications);
@@ -701,10 +696,6 @@ function CustomerShop() {
   }, [orderHistory]);
 
   useEffect(() => {
-    writeJson(RECENT_SHOPS_KEY, recentShops);
-  }, [recentShops]);
-
-  useEffect(() => {
     writeJson(SAVED_SHOPS_KEY, savedShops);
   }, [savedShops]);
 
@@ -743,16 +734,89 @@ function CustomerShop() {
   }, [activeOrder]);
 
   useEffect(() => {
+    if (!customerSession?.token) {
+      setRecentShops([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadRecentShops() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/v1/public/customers/recent-shops`, {
+          headers: {
+            Authorization: `Bearer ${customerSession.token}`
+          }
+        });
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.message || "Unable to load recent shops.");
+        }
+
+        if (!cancelled) {
+          setRecentShops(result.data || []);
+        }
+      } catch (_error) {
+        if (!cancelled) {
+          setRecentShops([]);
+        }
+      }
+    }
+
+    loadRecentShops();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [customerSession?.token]);
+
+  useEffect(() => {
     if (!shop) {
       return;
     }
 
     const snapshot = createShopSnapshot(shop, pathInfo.basePath);
-    setRecentShops((current) => upsertById(current, snapshot, "slug").slice(0, 8));
     setSavedShops((current) =>
       current.map((entry) => (entry.slug === snapshot.slug ? { ...entry, ...snapshot, savedAt: entry.savedAt } : entry))
     );
   }, [pathInfo.basePath, shop]);
+
+  useEffect(() => {
+    if (!shop || !customerSession?.token) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function recordRecentShop() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/v1/public/customers/recent-shops/${encodeURIComponent(shop.slug)}`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${customerSession.token}`
+          }
+        });
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.message || "Unable to record recent shop.");
+        }
+
+        if (!cancelled && result.data) {
+          setRecentShops((current) => upsertById(current, result.data, "slug").slice(0, 8));
+        }
+      } catch (_error) {
+        // Recent shops should never block browsing or ordering.
+      }
+    }
+
+    recordRecentShop();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [customerSession?.token, shop]);
 
   useEffect(() => {
     function handleBeforeInstallPrompt(event) {
@@ -1544,23 +1608,6 @@ function CustomerShop() {
         <div className="customer-topbar-actions">
           <button
             type="button"
-            className={`customer-ghost-chip customer-icon-chip ${currentShopSaved ? "is-active" : ""}`}
-            onClick={toggleSaveShop}
-            aria-label={currentShopSaved ? "Remove saved shop" : "Save shop"}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M12 3.5 14.7 9l6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9l6.1-.9L12 3.5Z"
-                stroke="currentColor"
-                strokeWidth="1.9"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill={currentShopSaved ? "currentColor" : "none"}
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
             className={`customer-ghost-chip customer-icon-chip ${activeStep === "cart" ? "is-active" : ""}`}
             onClick={() => goToStep("cart")}
             aria-label={`Cart${cartCount ? ` ${cartCount} items` : ""}`}
@@ -1592,22 +1639,6 @@ function CustomerShop() {
               />
             </svg>
             {unreadCount ? <strong>{unreadCount}</strong> : null}
-          </button>
-          <button
-            type="button"
-            className={`customer-ghost-chip customer-icon-chip ${activeStep === "profile" ? "is-active" : ""}`}
-            onClick={() => goToStep("profile")}
-            aria-label={customerSession?.token ? "Open profile" : "Profile access"}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M20 21a8 8 0 0 0-16 0m8-10a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z"
-                stroke="currentColor"
-                strokeWidth="1.9"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
           </button>
         </div>
       </header>
@@ -2455,12 +2486,7 @@ function CustomerShop() {
               <p className="customer-overline">Profile</p>
               <h2>Profile details</h2>
             </div>
-            <div className="customer-section-actions">
-              {profileBackButton}
-              <button className="customer-secondary-action" type="button" onClick={logoutCustomer}>
-                Logout
-              </button>
-            </div>
+            <div className="customer-section-actions">{profileBackButton}</div>
           </div>
           <section className="customer-panel customer-panel-wide">
             <form className="customer-profile-form" onSubmit={saveCustomerProfile}>
@@ -2649,9 +2675,11 @@ function CustomerShop() {
             <h2>{customerSession?.customer?.name ? `${customerSession.customer.name}'s profile` : "Customer profile"}</h2>
           </div>
           {customerSession?.token ? (
-            <button className="customer-secondary-action" type="button" onClick={logoutCustomer}>
-              Logout
-            </button>
+            <div className="customer-section-actions">
+              <a className="customer-secondary-action" href="/">
+                Customer home
+              </a>
+            </div>
           ) : null}
         </div>
 
@@ -2904,6 +2932,14 @@ function CustomerShop() {
             </div>
           </section>
         </div>
+
+        {customerSession?.token ? (
+          <div className="customer-profile-bottom-actions">
+            <button className="customer-secondary-action customer-logout-action" type="button" onClick={logoutCustomer}>
+              Logout
+            </button>
+          </div>
+        ) : null}
       </section>
     );
   }
@@ -2990,6 +3026,18 @@ function CustomerShop() {
       default:
         return renderMenuPage();
     }
+  }
+
+  function isMobileTabActive(tabId) {
+    if (tabId === "menu") {
+      return activeStep === "product" || orderFlowRoutes.has(activeStep);
+    }
+
+    if (tabId === "home") {
+      return activeStep === "dashboard";
+    }
+
+    return activeStep === tabId;
   }
 
   if (loading) {
@@ -3098,23 +3146,24 @@ function CustomerShop() {
           <button
             key={tab.id}
             type="button"
-            className={activeStep === tab.id ? "is-active" : ""}
-            onClick={() => goToStep(tab.id)}
+            className={isMobileTabActive(tab.id) ? "is-active" : ""}
+            onClick={() => {
+              if (tab.id === "home") {
+                window.location.href = "/";
+                return;
+              }
+
+              goToStep(tab.id);
+            }}
           >
-            {tab.icon === "menu" ? (
+            {tab.icon === "shop" ? (
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+                <path d="M4 10h16l-2-5H6l-2 5Zm2 0v9h12v-9M9 19v-5h6v5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             ) : null}
-            {tab.icon === "cart" ? (
+            {tab.icon === "home" ? (
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path
-                  d="M3 5h2l2.2 9.2a1 1 0 0 0 1 .8h8.9a1 1 0 0 0 1-.76L20 8H7m3 12a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm9 0a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z"
-                  stroke="currentColor"
-                  strokeWidth="1.9"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
+                <path d="M3 10.5 12 3l9 7.5M5.5 9.5V21h13V9.5M9 21v-6h6v6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             ) : null}
             {tab.icon === "user" ? (
@@ -3129,7 +3178,6 @@ function CustomerShop() {
               </svg>
             ) : null}
             <span>{tab.label}</span>
-            {tab.id === "cart" ? <strong>{cartCount}</strong> : null}
           </button>
         ))}
       </nav>

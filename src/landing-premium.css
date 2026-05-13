@@ -10,7 +10,7 @@ body.landing-premium-body {
   min-height: 100vh;
   width: 100%;
   margin: 0;
-  padding: clamp(16px, 3vw, 34px);
+  padding: clamp(16px, 3vw, 34px) clamp(16px, 3vw, 34px) 104px;
   display: grid;
   grid-template-rows: auto 1fr;
   gap: 14px;
@@ -570,6 +570,20 @@ body.landing-premium-body {
   color: #9d3f22;
 }
 
+.landing-profile-bottom-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: center;
+}
+
+.landing-logout-action {
+  min-width: min(100%, 220px);
+  border-color: rgba(214, 48, 49, 0.22);
+  background: #d63031;
+  color: #fff7f7;
+  box-shadow: 0 14px 28px rgba(214, 48, 49, 0.16);
+}
+
 .landing-inline-error,
 .landing-inline-message {
   margin-top: 12px;
@@ -590,9 +604,47 @@ body.landing-premium-body {
   color: #1f7743;
 }
 
+.landing-mobile-tabs {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 32;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 8px calc(10px + env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(126, 93, 61, 0.14);
+  background: rgba(255, 250, 245, 0.96);
+  box-shadow: 0 -18px 42px rgba(126, 93, 61, 0.12);
+  backdrop-filter: blur(18px);
+}
+
+.landing-mobile-tabs button {
+  min-height: 52px;
+  border: 0;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  background: transparent;
+  color: #7b6251;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.landing-mobile-tabs button.is-active {
+  background: #fff0e9;
+  color: #9d3f22;
+}
+
+.landing-mobile-tabs svg {
+  flex: 0 0 auto;
+}
+
 @media (max-width: 760px) {
   .landing-premium-shell {
-    padding: 12px;
+    padding: 12px 12px calc(92px + env(safe-area-inset-bottom));
   }
 
   .landing-welcome-card {

@@ -4,7 +4,6 @@ import { API_BASE_URL } from "./api.js";
 
 const CUSTOMER_SESSION_KEY = "qrmart_customer_session";
 const SAVED_SHOPS_KEY = "qrmart_saved_shops";
-const RECENT_SHOPS_KEY = "qrmart_recent_shops";
 const SAVED_ADDRESSES_KEY = "qrmart_saved_addresses";
 const ORDER_HISTORY_KEY = "qrmart_customer_order_history";
 const STATIC_CUSTOMER_OTP = "142006";
@@ -39,7 +38,7 @@ function readCustomerSession() {
 function LandingPage({ startOpen = false }) {
   const [customerSession, setCustomerSession] = useState(readCustomerSession);
   const [savedShops] = useState(() => readJson(SAVED_SHOPS_KEY, []));
-  const [recentShops] = useState(() => readJson(RECENT_SHOPS_KEY, []));
+  const [recentShops, setRecentShops] = useState([]);
   const [orderHistory] = useState(() => readJson(ORDER_HISTORY_KEY, []));
   const [mode, setMode] = useState(startOpen ? "register" : "login");
   const [customerView, setCustomerView] = useState("home");
@@ -62,6 +61,44 @@ function LandingPage({ startOpen = false }) {
     document.body.classList.add("landing-premium-body");
     return () => document.body.classList.remove("landing-premium-body");
   }, []);
+
+  useEffect(() => {
+    if (!customerSession?.token) {
+      setRecentShops([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadRecentShops() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/v1/public/customers/recent-shops`, {
+          headers: {
+            Authorization: `Bearer ${customerSession.token}`
+          }
+        });
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.message || "Unable to load recent shops.");
+        }
+
+        if (!cancelled) {
+          setRecentShops(result.data || []);
+        }
+      } catch (_error) {
+        if (!cancelled) {
+          setRecentShops([]);
+        }
+      }
+    }
+
+    loadRecentShops();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [customerSession?.token]);
 
   function update(field, value) {
     setForm((current) => ({
@@ -98,9 +135,17 @@ function LandingPage({ startOpen = false }) {
     window.location.href = firstShop.basePath;
   }
 
+  function openCustomerHome() {
+    setCustomerView("home");
+    setMessage("");
+    setError("");
+  }
+
   function openCustomerProfile() {
     if (!customerSession) {
       setMode("login");
+      setMessage("");
+      setError("");
       return;
     }
 
@@ -271,31 +316,13 @@ function LandingPage({ startOpen = false }) {
         <div className="landing-customer-header-note">Scan a shop QR to start ordering</div>
         <div className="landing-customer-top-actions">
           {customerSession ? (
-            <>
-              <button type="button" onClick={() => setMessage("Order alerts appear after you place an order from a shop.")} aria-label="Notifications">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M18 9.8c0-3.3-2.1-5.8-6-5.8s-6 2.5-6 5.8v2.9c0 .8-.3 1.5-.9 2.1L4 15.9h16l-1.1-1.1c-.6-.6-.9-1.3-.9-2.1V9.8ZM9.7 19a2.4 2.4 0 0 0 4.6 0" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-              <button type="button" className={customerView === "profile" ? "is-active" : ""} onClick={openCustomerProfile} aria-label="Open profile">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M20 21a8 8 0 0 0-16 0m8-10a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-            </>
+            <button type="button" onClick={() => setMessage("Order alerts appear after you place an order from a shop.")} aria-label="Notifications">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M18 9.8c0-3.3-2.1-5.8-6-5.8s-6 2.5-6 5.8v2.9c0 .8-.3 1.5-.9 2.1L4 15.9h16l-1.1-1.1c-.6-.6-.9-1.3-.9-2.1V9.8ZM9.7 19a2.4 2.4 0 0 0 4.6 0" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
           ) : (
-            <>
-              <button type="button" onClick={() => setMode("login")} aria-label="Login">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M20 21a8 8 0 0 0-16 0m8-10a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-              <button type="button" onClick={() => setMode("register")} aria-label="Register">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M12 5v14m7-7H5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-            </>
+            null
           )}
         </div>
       </header>
@@ -445,9 +472,6 @@ function LandingPage({ startOpen = false }) {
                 <p className="landing-premium-overline">Profile</p>
                 <h1>{customerSession.customer?.name || "Customer"}'s profile</h1>
               </div>
-              <button className="landing-premium-secondary" type="button" onClick={logoutCustomer}>
-                Logout
-              </button>
             </div>
 
             <section className="landing-profile-hero">
@@ -507,6 +531,12 @@ function LandingPage({ startOpen = false }) {
                 <b>{orderHistory.length}</b>
               </button>
             </section>
+
+            <div className="landing-profile-bottom-actions">
+              <button className="landing-premium-secondary landing-logout-action" type="button" onClick={logoutCustomer}>
+                Logout
+              </button>
+            </div>
 
             {message ? <div className="landing-inline-message">{message}</div> : null}
           </div>
@@ -640,6 +670,27 @@ function LandingPage({ startOpen = false }) {
         </div>
         )}
       </section>
+
+      <nav className="landing-mobile-tabs" aria-label="Customer mobile navigation">
+        <button type="button" onClick={openSavedShop}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 10h16l-2-5H6l-2 5Zm2 0v9h12v-9M9 19v-5h6v5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>Shop</span>
+        </button>
+        <button type="button" className={customerView === "home" ? "is-active" : ""} onClick={openCustomerHome}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M3 10.5 12 3l9 7.5M5.5 9.5V21h13V9.5M9 21v-6h6v6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>Home</span>
+        </button>
+        <button type="button" className={customerView !== "home" || !customerSession ? "is-active" : ""} onClick={openCustomerProfile}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M20 21a8 8 0 0 0-16 0m8-10a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>Profile</span>
+        </button>
+      </nav>
 
     </main>
   );
