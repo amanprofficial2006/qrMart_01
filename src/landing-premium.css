@@ -650,6 +650,65 @@ body.landing-premium-body {
   flex: 0 0 auto;
 }
 
+.landing-scanner-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  padding: 18px;
+  display: grid;
+  place-items: center;
+  background: rgba(33, 22, 15, 0.72);
+  backdrop-filter: blur(12px);
+}
+
+.landing-scanner-panel {
+  width: min(100%, 520px);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 24px;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+  background: #fffdf9;
+  box-shadow: 0 24px 60px rgba(33, 22, 15, 0.34);
+}
+
+.landing-scanner-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.landing-scanner-head h2 {
+  margin-bottom: 0;
+}
+
+.landing-scanner-camera {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #21160f;
+}
+
+.landing-scanner-camera video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.landing-scanner-frame {
+  position: absolute;
+  inset: 14%;
+  border: 3px solid rgba(255, 255, 255, 0.88);
+  border-radius: 22px;
+  box-shadow: 0 0 0 999px rgba(33, 22, 15, 0.26);
+}
+
 @media (max-width: 760px) {
   .landing-premium-shell {
     padding: 12px 12px calc(92px + env(safe-area-inset-bottom));
@@ -714,5 +773,15 @@ body.landing-premium-body {
 
   .landing-profile-stats {
     grid-template-columns: 1fr;
+  }
+
+  .landing-scanner-overlay {
+    padding: 12px;
+    align-items: end;
+  }
+
+  .landing-scanner-panel {
+    max-height: calc(100vh - 24px);
+    border-radius: 22px;
   }
 }

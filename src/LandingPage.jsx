@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "./landing-premium.css";
 import { API_BASE_URL } from "./api.js";
 
@@ -36,6 +36,10 @@ function readCustomerSession() {
 }
 
 function LandingPage({ startOpen = false }) {
+  const scannerVideoRef = useRef(null);
+  const scannerStreamRef = useRef(null);
+  const scannerFrameRef = useRef(null);
+  const scannerBusyRef = useRef(false);
   const [customerSession, setCustomerSession] = useState(readCustomerSession);
   const [savedShops] = useState(() => readJson(SAVED_SHOPS_KEY, []));
   const [recentShops, setRecentShops] = useState([]);
@@ -56,10 +60,15 @@ function LandingPage({ startOpen = false }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerMessage, setScannerMessage] = useState("");
 
   useEffect(() => {
     document.body.classList.add("landing-premium-body");
-    return () => document.body.classList.remove("landing-premium-body");
+    return () => {
+      stopQrScanner();
+      document.body.classList.remove("landing-premium-body");
+    };
   }, []);
 
   useEffect(() => {
@@ -122,6 +131,139 @@ function LandingPage({ startOpen = false }) {
     }
 
     window.location.href = entry.basePath;
+  }
+
+  function normalizeScannedUrl(value) {
+    const cleanValue = String(value || "").trim();
+
+    if (!cleanValue) {
+      return "";
+    }
+
+    if (!/^https?:\/\//i.test(cleanValue) && !cleanValue.startsWith("/")) {
+      return "";
+    }
+
+    try {
+      return new URL(cleanValue, window.location.origin).href;
+    } catch (_error) {
+      return "";
+    }
+  }
+
+  function waitForScannerVideo() {
+    return new Promise((resolve) => {
+      let attempts = 0;
+
+      function checkVideo() {
+        attempts += 1;
+
+        if (scannerVideoRef.current || attempts > 20) {
+          resolve(scannerVideoRef.current);
+          return;
+        }
+
+        window.requestAnimationFrame(checkVideo);
+      }
+
+      checkVideo();
+    });
+  }
+
+  function stopQrScanner() {
+    if (scannerFrameRef.current) {
+      window.cancelAnimationFrame(scannerFrameRef.current);
+      scannerFrameRef.current = null;
+    }
+
+    if (scannerStreamRef.current) {
+      scannerStreamRef.current.getTracks().forEach((track) => track.stop());
+      scannerStreamRef.current = null;
+    }
+
+    scannerBusyRef.current = false;
+  }
+
+  async function startQrScanner() {
+    setError("");
+    setMessage("");
+    setScannerMessage("Camera opening...");
+    setScannerOpen(true);
+
+    if (!("BarcodeDetector" in window)) {
+      setScannerMessage("This browser does not support live QR scanning. Please open qrMart in Chrome or Edge on your phone.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" }
+        },
+        audio: false
+      });
+      scannerStreamRef.current = stream;
+
+      const videoElement = await waitForScannerVideo();
+
+      if (!videoElement) {
+        throw new Error("Scanner camera view is not ready.");
+      }
+
+      videoElement.srcObject = stream;
+      await videoElement.play();
+
+      const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+
+      async function scanFrame() {
+        const video = scannerVideoRef.current;
+
+        if (!video || !scannerStreamRef.current) {
+          return;
+        }
+
+        if (!scannerBusyRef.current && video.readyState >= 2) {
+          scannerBusyRef.current = true;
+
+          try {
+            const codes = await detector.detect(video);
+            const scannedValue = codes[0]?.rawValue || "";
+            const redirectUrl = normalizeScannedUrl(scannedValue);
+
+            if (redirectUrl) {
+              stopQrScanner();
+              setScannerMessage("QR found. Opening shop...");
+              window.location.href = redirectUrl;
+              return;
+            }
+
+            if (scannedValue) {
+              setScannerMessage("QR found, but it is not a valid URL.");
+            } else {
+              setScannerMessage("Point the camera at the shop QR.");
+            }
+          } catch (_error) {
+            setScannerMessage("Scanning paused. Keep the QR steady in the frame.");
+          } finally {
+            scannerBusyRef.current = false;
+          }
+        }
+
+        scannerFrameRef.current = window.requestAnimationFrame(scanFrame);
+      }
+
+      setScannerMessage("Point the camera at the shop QR.");
+      scannerFrameRef.current = window.requestAnimationFrame(scanFrame);
+    } catch (_error) {
+      stopQrScanner();
+      setScannerMessage("Camera permission was denied or no camera was found.");
+    }
+  }
+
+  function closeQrScanner() {
+    stopQrScanner();
+    setScannerOpen(false);
+    setScannerMessage("");
   }
 
   function openSavedShop() {
@@ -550,7 +692,7 @@ function LandingPage({ startOpen = false }) {
               <p>Open a saved shop, revisit a recent shop, or scan a new shop QR to start ordering.</p>
 
               <div className="landing-scan-box">
-                <button className="landing-premium-primary landing-premium-primary-block" type="button" onClick={() => setMessage("Scan the QR code shown at the shop to open its menu.")}>
+                <button className="landing-premium-primary landing-premium-primary-block" type="button" onClick={startQrScanner}>
                   Scan QR for new shop
                 </button>
               </div>
@@ -694,6 +836,27 @@ function LandingPage({ startOpen = false }) {
             <span>Profile</span>
           </button>
         </nav>
+      ) : null}
+
+      {scannerOpen ? (
+        <div className="landing-scanner-overlay" role="dialog" aria-modal="true" aria-label="Scan shop QR">
+          <section className="landing-scanner-panel">
+            <div className="landing-scanner-head">
+              <div>
+                <p className="landing-premium-overline">Scan QR</p>
+                <h2>Open shop</h2>
+              </div>
+              <button className="landing-premium-secondary" type="button" onClick={closeQrScanner}>
+                Close
+              </button>
+            </div>
+            <div className="landing-scanner-camera">
+              <video ref={scannerVideoRef} playsInline muted />
+              <div className="landing-scanner-frame" aria-hidden="true" />
+            </div>
+            <div className="landing-inline-message">{scannerMessage || "Point the camera at the shop QR."}</div>
+          </section>
+        </div>
       ) : null}
 
     </main>
