@@ -2836,6 +2836,14 @@ body.customer-body #root {
   box-shadow: 0 12px 26px rgba(255, 99, 71, 0.16);
 }
 
+.customer-route-profile .customer-section-head {
+  align-items: center;
+}
+
+.customer-route-profile .customer-section-actions {
+  flex-wrap: nowrap;
+}
+
 .customer-address-actions {
   display: inline-flex;
   align-items: center;
@@ -2972,6 +2980,64 @@ body.customer-body #root {
 
   .customer-profile-gate-features {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .customer-route-profile .customer-section {
+    padding: 14px 12px 18px;
+  }
+
+  .customer-route-profile .customer-section-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 10px;
+  }
+
+  .customer-route-profile .customer-section-head h2 {
+    max-width: 180px;
+    font-size: 1.55rem;
+    line-height: 0.98;
+  }
+
+  .customer-route-profile .customer-section-actions {
+    display: grid;
+    gap: 8px;
+    justify-content: end;
+  }
+
+  .customer-route-profile .customer-section-actions .customer-secondary-action {
+    min-width: 74px;
+    min-height: 42px;
+    padding: 0 14px;
+  }
+
+  .customer-route-profile .customer-panel {
+    border-radius: 20px;
+    padding: 14px;
+  }
+
+  .customer-route-profile .customer-profile-form,
+  .customer-route-profile .customer-address-form {
+    gap: 12px;
+  }
+
+  .customer-route-profile .customer-profile-image-row {
+    padding: 10px;
+    border-radius: 18px;
+  }
+
+  .customer-route-profile .customer-profile-avatar-small {
+    width: 54px;
+    height: 54px;
+  }
+
+  .customer-route-profile .customer-field input,
+  .customer-route-profile .customer-field textarea {
+    min-height: 42px;
+    padding: 11px 13px;
+    border-radius: 14px;
   }
 }
 

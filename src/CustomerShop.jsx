@@ -2464,6 +2464,13 @@ function CustomerShop() {
           </div>
           <section className="customer-panel customer-panel-wide">
             <form className="customer-profile-form" onSubmit={saveCustomerProfile}>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="customer-hidden-file"
+                onChange={uploadCustomerAvatar}
+              />
               <div className="customer-profile-image-row">
                 <button
                   className="customer-profile-avatar customer-profile-avatar-small"
