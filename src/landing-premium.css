@@ -16,6 +16,10 @@ body.landing-premium-body {
   gap: 14px;
 }
 
+.landing-auth-shell {
+  padding-bottom: clamp(16px, 3vw, 34px);
+}
+
 .landing-premium-shell * {
   box-sizing: border-box;
   min-width: 0;
@@ -45,6 +49,10 @@ body.landing-premium-body {
   gap: 14px;
   background: rgba(255, 250, 245, 0.78);
   box-shadow: none;
+}
+
+.landing-auth-shell .landing-customer-topbar {
+  grid-template-columns: 1fr;
 }
 
 .landing-customer-brand {
@@ -645,6 +653,10 @@ body.landing-premium-body {
 @media (max-width: 760px) {
   .landing-premium-shell {
     padding: 12px 12px calc(92px + env(safe-area-inset-bottom));
+  }
+
+  .landing-auth-shell {
+    padding-bottom: 12px;
   }
 
   .landing-welcome-card {

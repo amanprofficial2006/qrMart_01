@@ -306,25 +306,27 @@ function LandingPage({ startOpen = false }) {
     }
   }
 
+  const isCustomerLoggedIn = Boolean(customerSession);
+
   return (
-    <main className="landing-premium-shell">
+    <main className={`landing-premium-shell ${isCustomerLoggedIn ? "" : "landing-auth-shell"}`}>
       <header className="landing-customer-topbar">
         <a className="landing-customer-brand" href="/" aria-label="qrMart customer home">
           <img src={logoImage} alt="" />
           <strong>qrMart</strong>
         </a>
-        <div className="landing-customer-header-note">Scan a shop QR to start ordering</div>
-        <div className="landing-customer-top-actions">
-          {customerSession ? (
-            <button type="button" onClick={() => setMessage("Order alerts appear after you place an order from a shop.")} aria-label="Notifications">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M18 9.8c0-3.3-2.1-5.8-6-5.8s-6 2.5-6 5.8v2.9c0 .8-.3 1.5-.9 2.1L4 15.9h16l-1.1-1.1c-.6-.6-.9-1.3-.9-2.1V9.8ZM9.7 19a2.4 2.4 0 0 0 4.6 0" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-          ) : (
-            null
-          )}
-        </div>
+        {isCustomerLoggedIn ? (
+          <>
+            <div className="landing-customer-header-note">Scan a shop QR to start ordering</div>
+            <div className="landing-customer-top-actions">
+              <button type="button" onClick={() => setMessage("Order alerts appear after you place an order from a shop.")} aria-label="Notifications">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M18 9.8c0-3.3-2.1-5.8-6-5.8s-6 2.5-6 5.8v2.9c0 .8-.3 1.5-.9 2.1L4 15.9h16l-1.1-1.1c-.6-.6-.9-1.3-.9-2.1V9.8ZM9.7 19a2.4 2.4 0 0 0 4.6 0" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </div>
+          </>
+        ) : null}
       </header>
 
       <section className="landing-welcome-card">
@@ -671,26 +673,28 @@ function LandingPage({ startOpen = false }) {
         )}
       </section>
 
-      <nav className="landing-mobile-tabs" aria-label="Customer mobile navigation">
-        <button type="button" onClick={openSavedShop}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M4 10h16l-2-5H6l-2 5Zm2 0v9h12v-9M9 19v-5h6v5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <span>Shop</span>
-        </button>
-        <button type="button" className={customerView === "home" ? "is-active" : ""} onClick={openCustomerHome}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M3 10.5 12 3l9 7.5M5.5 9.5V21h13V9.5M9 21v-6h6v6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <span>Home</span>
-        </button>
-        <button type="button" className={customerView !== "home" || !customerSession ? "is-active" : ""} onClick={openCustomerProfile}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M20 21a8 8 0 0 0-16 0m8-10a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <span>Profile</span>
-        </button>
-      </nav>
+      {isCustomerLoggedIn ? (
+        <nav className="landing-mobile-tabs" aria-label="Customer mobile navigation">
+          <button type="button" onClick={openSavedShop}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4 10h16l-2-5H6l-2 5Zm2 0v9h12v-9M9 19v-5h6v5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span>Shop</span>
+          </button>
+          <button type="button" className={customerView === "home" ? "is-active" : ""} onClick={openCustomerHome}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M3 10.5 12 3l9 7.5M5.5 9.5V21h13V9.5M9 21v-6h6v6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span>Home</span>
+          </button>
+          <button type="button" className={customerView !== "home" || !customerSession ? "is-active" : ""} onClick={openCustomerProfile}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M20 21a8 8 0 0 0-16 0m8-10a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span>Profile</span>
+          </button>
+        </nav>
+      ) : null}
 
     </main>
   );
